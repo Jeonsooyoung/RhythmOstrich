@@ -1,3 +1,4 @@
+//MediaPipe FaceLandmarker의 얼굴 결과 반환
 import { useEffect, useRef, useState } from 'react';
 import type {
     FaceLandmarker,
@@ -10,6 +11,7 @@ export function useFaceLandmarker(
     videoElement: HTMLVideoElement | null
 ) {
     const landmarkerRef = useRef<FaceLandmarker | null>(null);
+    const lastVideoTimeRef = useRef(-1);
 
     const [result, setResult] =
         useState<FaceLandmarkerResult | null>(null);
@@ -34,14 +36,19 @@ export function useFaceLandmarker(
                 landmarker &&
                 videoElement &&
                 videoElement.readyState >= 2
-            ) {
-                const detectionResult =
-                    landmarker.detectForVideo(
-                        videoElement,
-                        performance.now()
-                    );
+            ) { //videoElement.currentTime이 이전 프레임과 달라졌을 때만 
+                //detectForVideo를 호출하여 30fps일 경우 중복 연산 방지
+                if (videoElement.currentTime !== lastVideoTimeRef.current) {
+                    lastVideoTimeRef.current = videoElement.currentTime;
 
-                setResult(detectionResult);
+                    const detectionResult =
+                        landmarker.detectForVideo(
+                            videoElement,
+                            performance.now()
+                        );
+
+                    setResult(detectionResult);
+                }
             }
 
             animationFrameId =
