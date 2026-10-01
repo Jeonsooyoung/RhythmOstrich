@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useWebcam } from '../hooks/useWebcam';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
 import { DrawingUtils, FaceLandmarker } from '@mediapipe/tasks-vision';
+import { extractHeadAngles } from '../mediapipe/motionExtractor';
 
 function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -27,6 +28,13 @@ function WebcamView() {
             setVideoElement(videoRef.current);
         }
     }, [stream]);
+
+    const [angles, setAngles] = useState({
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+    });
+    const lastAngleUpdateRef = useRef(0);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -95,6 +103,26 @@ function WebcamView() {
         }
     }, [faceResult]);
 
+    useEffect(() => {
+        if (!faceResult) return;
+
+        const matrix =
+            faceResult.facialTransformationMatrixes?.[0];
+
+        if (!matrix) return;
+
+        const headAngles = extractHeadAngles(matrix.data);
+
+        const now = performance.now();
+
+        // 화면에 표시하는 각도 값은 100ms마다 한 번만 업데이트
+        // MediaPipe 추론 자체는 계속 모든 새 프레임에서 수행한다.
+        if (now - lastAngleUpdateRef.current >= 100) {
+            setAngles(headAngles);
+            lastAngleUpdateRef.current = now;
+        }
+    }, [faceResult]);
+
     const faceDetected =
         (faceResult?.faceLandmarks.length ?? 0) > 0;
 
@@ -157,6 +185,12 @@ function WebcamView() {
                 얼굴 인식:
                 {faceDetected ? ' 인식됨' : ' 인식 안 됨'}
             </p>
+
+            <div>
+                <p>Yaw: {angles.yaw.toFixed(1)}°</p>
+                <p>Pitch: {angles.pitch.toFixed(1)}°</p>
+                <p>Roll: {angles.roll.toFixed(1)}°</p>
+            </div>
 
             {error && <p>{error}</p>}
         </div>
