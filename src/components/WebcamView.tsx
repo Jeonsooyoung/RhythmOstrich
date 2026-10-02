@@ -1,13 +1,16 @@
-//사용자 Video를 보여주는 컴포넌트
+// 사용자 Video를 보여주는 컴포넌트
 import { useEffect, useRef, useState } from 'react';
+import { DrawingUtils, FaceLandmarker } from '@mediapipe/tasks-vision';
+
 import { useWebcam } from '../hooks/useWebcam';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
-import { DrawingUtils, FaceLandmarker } from '@mediapipe/tasks-vision';
 import { extractHeadAngles } from '../mediapipe/motionExtractor';
+import { calibrateAngles } from '../motion/calibrate';
 
 function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+
     const [videoElement, setVideoElement] =
         useState<HTMLVideoElement | null>(null);
 
@@ -19,9 +22,33 @@ function WebcamView() {
         stopCamera,
     } = useWebcam();
 
-    const faceResult =
-        useFaceLandmarker(videoElement);
+    const faceResult = useFaceLandmarker(videoElement);
 
+    // 원본 머리 각도
+    const [angles, setAngles] = useState({
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+    });
+
+    // 정면으로 설정했을 때의 기준값
+    const [calibration, setCalibration] = useState<{
+        yaw: number;
+        pitch: number;
+        roll: number;
+    } | null>(null);
+
+    // 정면 기준값을 뺀 실제 게임용 각도
+    const [calibratedAngles, setCalibratedAngles] = useState({
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+    });
+
+    // 화면의 각도 숫자는 100ms마다 갱신하기 위한 값
+    const lastAngleUpdateRef = useRef(0);
+
+    // 웹캠 stream을 video에 연결
     useEffect(() => {
         if (videoRef.current && stream) {
             videoRef.current.srcObject = stream;
@@ -29,13 +56,7 @@ function WebcamView() {
         }
     }, [stream]);
 
-    const [angles, setAngles] = useState({
-        yaw: 0,
-        pitch: 0,
-        roll: 0,
-    });
-    const lastAngleUpdateRef = useRef(0);
-
+    // 얼굴 Landmarks 시각화
     useEffect(() => {
         const canvas = canvasRef.current;
         const video = videoRef.current;
@@ -54,7 +75,7 @@ function WebcamView() {
         const drawingUtils = new DrawingUtils(ctx);
 
         for (const landmarks of faceResult.faceLandmarks) {
-            //얼굴 전체 Mesh
+            // 얼굴 전체 Mesh
             drawingUtils.drawConnectors(
                 landmarks,
                 FaceLandmarker.FACE_LANDMARKS_TESSELATION,
@@ -64,7 +85,7 @@ function WebcamView() {
                 }
             );
 
-            //얼굴 윤곽
+            // 얼굴 윤곽
             drawingUtils.drawConnectors(
                 landmarks,
                 FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
@@ -73,7 +94,8 @@ function WebcamView() {
                     lineWidth: 1,
                 }
             );
-            //왼쪽 눈
+
+            // 왼쪽 눈
             drawingUtils.drawConnectors(
                 landmarks,
                 FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
@@ -82,7 +104,8 @@ function WebcamView() {
                     lineWidth: 1,
                 }
             );
-            //오른쪽 눈
+
+            // 오른쪽 눈
             drawingUtils.drawConnectors(
                 landmarks,
                 FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
@@ -91,7 +114,8 @@ function WebcamView() {
                     lineWidth: 1,
                 }
             );
-            //입
+
+            // 입
             drawingUtils.drawConnectors(
                 landmarks,
                 FaceLandmarker.FACE_LANDMARKS_LIPS,
@@ -103,6 +127,7 @@ function WebcamView() {
         }
     }, [faceResult]);
 
+    // Transformation Matrix → yaw / pitch / roll 변환
     useEffect(() => {
         if (!faceResult) return;
 
@@ -115,13 +140,41 @@ function WebcamView() {
 
         const now = performance.now();
 
-        // 화면에 표시하는 각도 값은 100ms마다 한 번만 업데이트
-        // MediaPipe 추론 자체는 계속 모든 새 프레임에서 수행한다.
+        // 화면에 표시하는 각도값은 100ms마다 한 번만 갱신
+        // MediaPipe 추론 자체는 모든 새 프레임에서 계속 수행됨
         if (now - lastAngleUpdateRef.current >= 100) {
             setAngles(headAngles);
+
+            // 정면 기준이 설정되어 있다면
+            // 현재 각도에서 기준 각도를 빼서 상대적인 움직임 계산
+            if (calibration) {
+                const correctedAngles = calibrateAngles(
+                    headAngles,
+                    calibration
+                );
+
+                setCalibratedAngles(correctedAngles);
+            }
+
             lastAngleUpdateRef.current = now;
         }
-    }, [faceResult]);
+    }, [faceResult, calibration]);
+
+    // 현재 자세를 정면 기준으로 설정
+    function handleCalibration() {
+        setCalibration({
+            yaw: angles.yaw,
+            pitch: angles.pitch,
+            roll: angles.roll,
+        });
+
+        // 버튼을 누른 순간은 정면이므로 0으로 표시
+        setCalibratedAngles({
+            yaw: 0,
+            pitch: 0,
+            roll: 0,
+        });
+    }
 
     const faceDetected =
         (faceResult?.faceLandmarks.length ?? 0) > 0;
@@ -179,6 +232,13 @@ function WebcamView() {
                 <button onClick={stopCamera}>
                     카메라 종료
                 </button>
+
+                <button
+                    onClick={handleCalibration}
+                    disabled={!faceDetected}
+                >
+                    정면 기준 설정
+                </button>
             </div>
 
             <p>
@@ -187,9 +247,30 @@ function WebcamView() {
             </p>
 
             <div>
+                <h3>원본 각도</h3>
                 <p>Yaw: {angles.yaw.toFixed(1)}°</p>
                 <p>Pitch: {angles.pitch.toFixed(1)}°</p>
                 <p>Roll: {angles.roll.toFixed(1)}°</p>
+            </div>
+
+            <div>
+                <h3>정면 기준 각도</h3>
+
+                {calibration ? (
+                    <>
+                        <p>
+                            Yaw: {calibratedAngles.yaw.toFixed(1)}°
+                        </p>
+                        <p>
+                            Pitch: {calibratedAngles.pitch.toFixed(1)}°
+                        </p>
+                        <p>
+                            Roll: {calibratedAngles.roll.toFixed(1)}°
+                        </p>
+                    </>
+                ) : (
+                    <p>정면 기준을 설정해주세요.</p>
+                )}
             </div>
 
             {error && <p>{error}</p>}
