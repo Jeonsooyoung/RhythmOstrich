@@ -7,6 +7,8 @@ import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
 import { extractHeadAngles } from '../mediapipe/motionExtractor';
 import { calibrateAngles } from '../motion/calibrate';
 
+import { detectMotion } from '../motion/motionDetector';
+
 function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,6 +49,10 @@ function WebcamView() {
 
     // 화면의 각도 숫자는 100ms마다 갱신하기 위한 값
     const lastAngleUpdateRef = useRef(0);
+
+    const currentMotion = calibration
+        ? detectMotion(calibratedAngles)
+        : 'CENTER';
 
     // 웹캠 stream을 video에 연결
     useEffect(() => {
@@ -272,6 +278,7 @@ function WebcamView() {
                     <p>정면 기준을 설정해주세요.</p>
                 )}
             </div>
+            <p>현재 동작: {currentMotion}</p>
 
             {error && <p>{error}</p>}
         </div>
