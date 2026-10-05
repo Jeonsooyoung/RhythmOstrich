@@ -1,6 +1,12 @@
 // 사용자 Video를 보여주는 컴포넌트
 import { useEffect, useRef, useState } from 'react';
-import { DrawingUtils, FaceLandmarker } from '@mediapipe/tasks-vision';
+import {
+    DrawingUtils,
+    FaceLandmarker,
+    PoseLandmarker,
+} from '@mediapipe/tasks-vision';
+
+import { usePoseLandmarker } from '../hooks/usePoseLandmarker';
 
 import { useWebcam } from '../hooks/useWebcam';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
@@ -25,6 +31,7 @@ function WebcamView() {
     } = useWebcam();
 
     const faceResult = useFaceLandmarker(videoElement);
+    const poseResult = usePoseLandmarker(videoElement);
 
     // 원본 머리 각도
     const [angles, setAngles] = useState({
@@ -62,12 +69,12 @@ function WebcamView() {
         }
     }, [stream]);
 
-    // 얼굴 Landmarks 시각화
+    // 얼굴, 자세 Landmarks 시각화
     useEffect(() => {
         const canvas = canvasRef.current;
         const video = videoRef.current;
 
-        if (!canvas || !video || !faceResult) return;
+        if (!canvas || !video) return;
 
         const ctx = canvas.getContext('2d');
 
@@ -80,58 +87,92 @@ function WebcamView() {
 
         const drawingUtils = new DrawingUtils(ctx);
 
-        for (const landmarks of faceResult.faceLandmarks) {
-            // 얼굴 전체 Mesh
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_TESSELATION,
-                {
-                    color: 'rgba(255, 255, 255, 0.35)',
-                    lineWidth: 0.5,
-                }
-            );
+        // Face Landmarks
+        if (faceResult) {
+            for (const landmarks of faceResult.faceLandmarks) {
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+                    {
+                        color: 'rgba(255, 255, 255, 0.35)',
+                        lineWidth: 0.5,
+                    }
+                );
 
-            // 얼굴 윤곽
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
-                {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+                    {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        lineWidth: 1,
+                    }
+                );
 
-            // 왼쪽 눈
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
-                {
-                    color: 'rgba(0, 255, 0, 0.8)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+                    {
+                        color: 'rgba(0, 255, 0, 0.8)',
+                        lineWidth: 1,
+                    }
+                );
 
-            // 오른쪽 눈
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
-                {
-                    color: 'rgba(0, 150, 255, 0.8)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+                    {
+                        color: 'rgba(0, 150, 255, 0.8)',
+                        lineWidth: 1,
+                    }
+                );
 
-            // 입
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_LIPS,
-                {
-                    color: 'rgba(255, 80, 80, 0.8)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_LIPS,
+                    {
+                        color: 'rgba(255, 80, 80, 0.8)',
+                        lineWidth: 1,
+                    }
+                );
+            }
         }
-    }, [faceResult]);
+
+        // Pose Landmarks
+        if (poseResult) {
+            for (const landmarks of poseResult.landmarks) {
+
+                // 얼굴(0~10)을 제외한 몸 부분 연결선만 사용
+                const bodyConnections =
+                    PoseLandmarker.POSE_CONNECTIONS.filter(
+                        (connection) =>
+                            connection.start >= 11 &&
+                            connection.end >= 11
+                    );
+
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    bodyConnections,
+                    {
+                        color: 'rgba(255, 255, 0, 0.8)',
+                        lineWidth: 2,
+                    }
+                );
+
+                // 얼굴 랜드마크를 제외한 몸 랜드마크만 표시
+                const bodyLandmarks = landmarks.filter(
+                    (_, index) => index >= 11
+                );
+
+                drawingUtils.drawLandmarks(
+                    bodyLandmarks,
+                    {
+                        color: 'rgba(255, 100, 0, 0.9)',
+                        radius: 3,
+                    }
+                );
+            }
+        }
+    }, [faceResult, poseResult]);
 
     // Transformation Matrix → yaw / pitch / roll 변환
     useEffect(() => {
@@ -184,6 +225,14 @@ function WebcamView() {
 
     const faceDetected =
         (faceResult?.faceLandmarks.length ?? 0) > 0;
+
+    const poseDetected =
+        (poseResult?.landmarks.length ?? 0) > 0;
+
+    const poseLandmarks = poseResult?.landmarks?.[0];
+
+    const leftShoulder = poseLandmarks?.[11];
+    const rightShoulder = poseLandmarks?.[12];
 
     return (
         <div>
@@ -251,6 +300,29 @@ function WebcamView() {
                 얼굴 인식:
                 {faceDetected ? ' 인식됨' : ' 인식 안 됨'}
             </p>
+
+            <p>
+                자세 인식:
+                {poseDetected ? ' 인식됨' : ' 인식 안 됨'}
+            </p>
+
+            {leftShoulder && rightShoulder && (
+                <div>
+                    <h3>어깨 좌표</h3>
+
+                    <p>
+                        왼쪽 어깨:
+                        x {leftShoulder.x.toFixed(2)},
+                        y {leftShoulder.y.toFixed(2)}
+                    </p>
+
+                    <p>
+                        오른쪽 어깨:
+                        x {rightShoulder.x.toFixed(2)},
+                        y {rightShoulder.y.toFixed(2)}
+                    </p>
+                </div>
+            )}
 
             <div>
                 <h3>원본 각도</h3>
