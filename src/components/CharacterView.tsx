@@ -5,16 +5,24 @@ import {
     type CharacterController,
 } from '../three/CharacterScene';
 
+import {
+    CHARACTER_MODELS,
+    type CharacterId,
+} from '../three/characters';
+
 interface CharacterViewProps {
     angles: {
         yaw: number;
         pitch: number;
         roll: number;
     };
+
+    character: CharacterId;
 }
 
 function CharacterView({
     angles,
+    character,
 }: CharacterViewProps) {
     const containerRef =
         useRef<HTMLDivElement | null>(null);
@@ -22,22 +30,25 @@ function CharacterView({
     const controllerRef =
         useRef<CharacterController | null>(null);
 
-    // Three.js Scene은 처음 한 번만 생성
+    // 캐릭터가 바뀔 때 Scene 다시 생성
     useEffect(() => {
         const container = containerRef.current;
 
         if (!container) return;
 
         controllerRef.current =
-            createCharacterScene(container);
+            createCharacterScene(
+                container,
+                CHARACTER_MODELS[character]
+            );
 
         return () => {
             controllerRef.current?.dispose();
             controllerRef.current = null;
         };
-    }, []);
+    }, [character]);
 
-    // 각도가 바뀔 때 Bone만 회전
+    // 각도가 바뀔 때 Head Bone 회전
     useEffect(() => {
         controllerRef.current?.setHeadAngles(
             angles.yaw,

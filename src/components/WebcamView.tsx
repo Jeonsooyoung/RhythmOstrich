@@ -15,6 +15,7 @@ import { calibrateAngles } from '../motion/calibrate';
 
 import { detectMotion } from '../motion/motionDetector';
 import CharacterView from './CharacterView';
+import type { CharacterId } from '../three/characters';
 
 function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -54,6 +55,9 @@ function WebcamView() {
         pitch: 0,
         roll: 0,
     });
+
+    const [selectedCharacter, setSelectedCharacter] =
+        useState<CharacterId>('chicken');
 
     // 화면의 각도 숫자는 100ms마다 갱신하기 위한 값
     const lastAngleUpdateRef = useRef(0);
@@ -362,8 +366,24 @@ function WebcamView() {
                 현재 동작:
                 {currentMotion ?? ' 추적 대기'}
             </p>
-            <CharacterView angles={calibratedAngles} />
+            <div>
+                <button
+                    onClick={() => setSelectedCharacter('chicken')}
+                >
+                    닭
+                </button>
 
+                <button
+                    onClick={() => setSelectedCharacter('ostrich')}
+                >
+                    타조
+                </button>
+            </div>
+
+            <CharacterView
+                angles={calibratedAngles}
+                character={selectedCharacter}
+            />
             {error && <p>{error}</p>}
         </div>
     );
