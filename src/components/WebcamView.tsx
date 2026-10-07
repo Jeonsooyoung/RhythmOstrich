@@ -58,9 +58,13 @@ function WebcamView() {
     // 화면의 각도 숫자는 100ms마다 갱신하기 위한 값
     const lastAngleUpdateRef = useRef(0);
 
-    const currentMotion = calibration
-        ? detectMotion(calibratedAngles)
-        : 'CENTER';
+    // 가장 최근에 측정된 실제 각도
+    // 화면 표시 주기와 관계없이 Calibration에 사용
+    const latestAnglesRef = useRef({
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+    });
 
     // 웹캠 stream을 video에 연결
     useEffect(() => {
@@ -184,24 +188,24 @@ function WebcamView() {
 
         const headAngles = extractHeadAngles(matrix.data);
 
+        // 가장 최신 각도는 항상 저장
+        latestAnglesRef.current = headAngles;
+
+        // 게임 / 3D 캐릭터용 각도는 새 결과마다 갱신
+        if (calibration) {
+            const correctedAngles = calibrateAngles(
+                headAngles,
+                calibration
+            );
+
+            setCalibratedAngles(correctedAngles);
+        }
+
         const now = performance.now();
 
-        // 화면에 표시하는 각도값은 100ms마다 한 번만 갱신
-        // MediaPipe 추론 자체는 모든 새 프레임에서 계속 수행됨
+        // 화면에 표시하는 숫자만 100ms마다 갱신
         if (now - lastAngleUpdateRef.current >= 100) {
             setAngles(headAngles);
-
-            // 정면 기준이 설정되어 있다면
-            // 현재 각도에서 기준 각도를 빼서 상대적인 움직임 계산
-            if (calibration) {
-                const correctedAngles = calibrateAngles(
-                    headAngles,
-                    calibration
-                );
-
-                setCalibratedAngles(correctedAngles);
-            }
-
             lastAngleUpdateRef.current = now;
         }
     }, [faceResult, calibration]);
@@ -209,9 +213,7 @@ function WebcamView() {
     // 현재 자세를 정면 기준으로 설정
     function handleCalibration() {
         setCalibration({
-            yaw: angles.yaw,
-            pitch: angles.pitch,
-            roll: angles.roll,
+            ...latestAnglesRef.current,
         });
 
         // 버튼을 누른 순간은 정면이므로 0으로 표시
@@ -224,6 +226,13 @@ function WebcamView() {
 
     const faceDetected =
         (faceResult?.faceLandmarks.length ?? 0) > 0;
+
+    const trackingValid =
+        faceDetected && calibration !== null;
+
+    const currentMotion = trackingValid
+        ? detectMotion(calibratedAngles)
+        : null;
 
     const poseDetected =
         (poseResult?.landmarks.length ?? 0) > 0;
@@ -349,7 +358,10 @@ function WebcamView() {
                     <p>정면 기준을 설정해주세요.</p>
                 )}
             </div>
-            <p>현재 동작: {currentMotion}</p>
+            <p>
+                현재 동작:
+                {currentMotion ?? ' 추적 대기'}
+            </p>
             <CharacterView angles={calibratedAngles} />
 
             {error && <p>{error}</p>}
