@@ -1,29 +1,54 @@
 import { useEffect, useRef } from 'react';
 
-import { createCharacterScene } from '../three/CharacterScene';
+import {
+    createCharacterScene,
+    type CharacterController,
+} from '../three/CharacterScene';
 
-function CharacterView() {
+interface CharacterViewProps {
+    angles: {
+        yaw: number;
+        pitch: number;
+        roll: number;
+    };
+}
+
+function CharacterView({
+    angles,
+}: CharacterViewProps) {
     const containerRef =
         useRef<HTMLDivElement | null>(null);
 
+    const controllerRef =
+        useRef<CharacterController | null>(null);
+
+    // Three.js Scene은 처음 한 번만 생성
     useEffect(() => {
         const container = containerRef.current;
 
         if (!container) return;
 
-        const { renderer } =
+        controllerRef.current =
             createCharacterScene(container);
 
         return () => {
-            renderer.dispose();
-
-            if (renderer.domElement.parentElement) {
-                renderer.domElement.parentElement.removeChild(
-                    renderer.domElement
-                );
-            }
+            controllerRef.current?.dispose();
+            controllerRef.current = null;
         };
     }, []);
+
+    // 각도가 바뀔 때 Bone만 회전
+    useEffect(() => {
+        controllerRef.current?.setHeadAngles(
+            angles.yaw,
+            angles.pitch,
+            angles.roll
+        );
+    }, [
+        angles.yaw,
+        angles.pitch,
+        angles.roll,
+    ]);
 
     return (
         <div

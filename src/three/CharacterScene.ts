@@ -1,9 +1,19 @@
 import * as THREE from 'three';
 import { loadCharacter } from './loadCharacter';
 
+export interface CharacterController {
+    setHeadAngles: (
+        yaw: number,
+        pitch: number,
+        roll: number
+    ) => void;
+
+    dispose: () => void;
+}
+
 export function createCharacterScene(
     container: HTMLDivElement
-) {
+): CharacterController {
     const scene = new THREE.Scene();
 
     const camera = new THREE.PerspectiveCamera(
@@ -37,16 +47,20 @@ export function createCharacterScene(
         new THREE.DirectionalLight(0xffffff, 3);
 
     directionalLight.position.set(2, 3, 4);
-
     scene.add(directionalLight);
 
-    // GLB 불러오기
+    // Bone
+    let headBone: THREE.Bone | null = null;
+
+    // 원래 Head Bone 회전값
+    const headBaseRotation = new THREE.Euler();
+
     loadCharacter(
         '/models/3DChicken.glb',
         (model) => {
             scene.add(model);
 
-            // 모델 전체 크기와 중심 계산
+            // 모델 중심 / 카메라 위치 계산
             const box = new THREE.Box3().setFromObject(model);
 
             const size = new THREE.Vector3();
@@ -55,43 +69,85 @@ export function createCharacterScene(
             box.getSize(size);
             box.getCenter(center);
 
-            // 모델 중심을 원점으로 이동
             model.position.sub(center);
 
-            // 모델 크기에 맞게 카메라 거리 자동 설정
             const maxSize = Math.max(
                 size.x,
                 size.y,
                 size.z
             );
 
-            const distance = maxSize * 1.2;
-
             camera.position.set(
                 0,
                 0,
-                distance
+                maxSize * 1.2
             );
 
             camera.lookAt(0, 0, 0);
 
-            console.log('캐릭터 크기:', size);
-            console.log('캐릭터 중심:', center);
-            console.log('캐릭터 로드 완료');
+            // Head Bone 찾기
+            const head = model.getObjectByName('Head');
+
+            if (head instanceof THREE.Bone) {
+                headBone = head;
+
+                // Blender에서 만들어둔 기본 자세 저장
+                headBaseRotation.copy(head.rotation);
+
+                console.log('Head Bone 연결 성공:', headBone);
+            } else {
+                console.error('Head Bone을 찾지 못했습니다.');
+            }
         }
     );
 
+    function setHeadAngles(
+        yaw: number,
+        pitch: number,
+        roll: number
+    ) {
+        if (!headBone) return;
+
+        // degree → radian
+        const yawRad = THREE.MathUtils.degToRad(yaw);
+        const pitchRad = THREE.MathUtils.degToRad(pitch);
+        const rollRad = THREE.MathUtils.degToRad(roll);
+
+        // 일단 일반적인 XYZ 축 기준으로 테스트
+        headBone.rotation.x =
+            headBaseRotation.x - pitchRad;
+
+        headBone.rotation.y =
+            headBaseRotation.y + yawRad;
+
+        headBone.rotation.z =
+            headBaseRotation.z + rollRad;
+    }
+
+    let animationFrameId = 0;
+
     function animate() {
-        requestAnimationFrame(animate);
+        animationFrameId =
+            requestAnimationFrame(animate);
 
         renderer.render(scene, camera);
     }
 
     animate();
 
+    function dispose() {
+        cancelAnimationFrame(animationFrameId);
+        renderer.dispose();
+
+        if (renderer.domElement.parentElement) {
+            renderer.domElement.parentElement.removeChild(
+                renderer.domElement
+            );
+        }
+    }
+
     return {
-        scene,
-        camera,
-        renderer,
+        setHeadAngles,
+        dispose,
     };
 }

@@ -14,6 +14,7 @@ import { extractHeadAngles } from '../mediapipe/motionExtractor';
 import { calibrateAngles } from '../motion/calibrate';
 
 import { detectMotion } from '../motion/motionDetector';
+import CharacterView from './CharacterView';
 
 function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -141,7 +142,6 @@ function WebcamView() {
         if (poseResult) {
             for (const landmarks of poseResult.landmarks) {
 
-                // 얼굴(0~10)을 제외한 몸 부분 연결선만 사용
                 const bodyConnections =
                     PoseLandmarker.POSE_CONNECTIONS.filter(
                         (connection) =>
@@ -158,7 +158,6 @@ function WebcamView() {
                     }
                 );
 
-                // 얼굴 랜드마크를 제외한 몸 랜드마크만 표시
                 const bodyLandmarks = landmarks.filter(
                     (_, index) => index >= 11
                 );
@@ -351,6 +350,7 @@ function WebcamView() {
                 )}
             </div>
             <p>현재 동작: {currentMotion}</p>
+            <CharacterView angles={calibratedAngles} />
 
             {error && <p>{error}</p>}
         </div>
