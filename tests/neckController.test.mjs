@@ -47,7 +47,7 @@ for (const [name, rig] of Object.entries(CHARACTER_RIGS)) {
         controller.setAngles(30, 20, 10);
         controller.update(10);
         const delta = new THREE.Quaternion().setFromEuler(new THREE.Euler(
-            THREE.MathUtils.degToRad(-20), THREE.MathUtils.degToRad(30), THREE.MathUtils.degToRad(10),
+            THREE.MathUtils.degToRad(-24), THREE.MathUtils.degToRad(36), THREE.MathUtils.degToRad(12),
         ));
         closeRotation(head.getWorldQuaternion(new THREE.Quaternion()), restHead.clone().multiply(delta));
         closeRotation(body.quaternion, restBody);
@@ -55,6 +55,20 @@ for (const [name, rig] of Object.entries(CHARACTER_RIGS)) {
         controller.setAngles(0, 0, 0);
         controller.update(10);
         rig.joints.forEach(({ name }, i) => closeRotation(model.getObjectByName(name).quaternion, restLocals[i]));
+    });
+    test(`${name}: emphasize downward pitch and clamp amplified output`, () => {
+        const model = loadSkeleton(rig.modelPath);
+        const head = model.getObjectByName('Head');
+        const rest = head.getWorldQuaternion(new THREE.Quaternion());
+        const controller = createNeckController(model, rig);
+        for (const [input, output] of [[-10, 18], [10, -12], [-30, 40], [0, 0]]) {
+            controller.setAngles(0, input, 0);
+            controller.update(10);
+            const delta = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(output),
+            );
+            closeRotation(head.getWorldQuaternion(new THREE.Quaternion()), rest.clone().multiply(delta));
+        }
     });
     test(`${name}: smoothing is frame-rate independent and inputs are bounded`, () => {
         const results = [30, 60, 120].map(fps => {
@@ -74,3 +88,70 @@ for (const [name, rig] of Object.entries(CHARACTER_RIGS)) {
         closeRotation(results[0], model.getObjectByName('Head').getWorldQuaternion(new THREE.Quaternion()));
     });
 }
+
+test('ostrich: bowing uses more neck while turns and upward pitch stay unchanged', () => {
+    const rig = CHARACTER_RIGS.ostrich;
+    const originalRig = {
+        ...rig,
+        joints: rig.joints.map(({ name, weight }) => ({ name, weight })),
+    };
+    for (const angles of [[25, 0, 0], [0, 15, 0], [0, 0, 15], [0, -20, 0], [25, -20, 10]]) {
+        const original = loadSkeleton(rig.modelPath);
+        const updated = loadSkeleton(rig.modelPath);
+        const restNeck = updated.getObjectByName('Neck03').quaternion.clone();
+        const controllers = [createNeckController(original, originalRig), createNeckController(updated, rig)];
+        for (const controller of controllers) {
+            controller.setAngles(...angles);
+            controller.update(10);
+        }
+        closeRotation(
+            original.getObjectByName('Head').getWorldQuaternion(new THREE.Quaternion()),
+            updated.getObjectByName('Head').getWorldQuaternion(new THREE.Quaternion()),
+        );
+        if (angles[1] >= 0) {
+            for (const { name } of rig.joints) {
+                closeRotation(original.getObjectByName(name).quaternion, updated.getObjectByName(name).quaternion);
+            }
+        } else {
+            const oldBend = original.getObjectByName('Neck03').quaternion.angleTo(restNeck);
+            const newBend = updated.getObjectByName('Neck03').quaternion.angleTo(restNeck);
+            assert.ok(newBend > oldBend * 1.5);
+            const oldPosition = original.getObjectByName('Head').getWorldPosition(new THREE.Vector3());
+            const newPosition = updated.getObjectByName('Head').getWorldPosition(new THREE.Vector3());
+            assert.ok(oldPosition.distanceTo(newPosition) > 0.01);
+        }
+    }
+});
+
+test('ostrich: downward transition is continuous, frame-rate independent and returns to rest', () => {
+    const rig = CHARACTER_RIGS.ostrich;
+    const results = [30, 60, 120].map(fps => {
+        const model = loadSkeleton(rig.modelPath);
+        const rest = rig.joints.map(({ name }) => model.getObjectByName(name).quaternion.clone());
+        const controller = createNeckController(model, rig);
+        controller.setAngles(20, -20, 10);
+        for (let i = 0; i < fps; i++) controller.update(1 / fps);
+        const bowed = rig.joints.map(({ name }) => model.getObjectByName(name).quaternion.clone());
+        controller.setAngles(0, 0, 0);
+        controller.update(10);
+        rig.joints.forEach(({ name }, i) => closeRotation(model.getObjectByName(name).quaternion, rest[i]));
+        return bowed;
+    });
+    results[0].forEach((q, i) => {
+        closeRotation(q, results[1][i]);
+        closeRotation(q, results[2][i]);
+    });
+    const model = loadSkeleton(rig.modelPath);
+    const controller = createNeckController(model, rig);
+    // 정면과 전환 완료 경계의 양쪽에서 작은 입력 변화가 관절을 튀게 하지 않아야 합니다.
+    for (const boundary of [0, -rig.pitchDownBlendAngle / rig.gain.pitchDown]) {
+        controller.setAngles(20, boundary - 0.0001, 0);
+        controller.update(10);
+        const before = rig.joints.map(({ name }) => model.getObjectByName(name).quaternion.clone());
+        controller.setAngles(20, boundary + 0.0001, 0);
+        controller.update(10);
+        rig.joints.forEach(({ name }, i) => {
+            assert.ok(model.getObjectByName(name).quaternion.angleTo(before[i]) < 0.0001);
+        });
+    }
+});
