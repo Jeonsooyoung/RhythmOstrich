@@ -15,7 +15,7 @@ import { calibrateAngles } from '../motion/calibrate';
 
 import { detectMotion } from '../motion/motionDetector';
 import CharacterView from './CharacterView';
-import type { CharacterId } from '../three/characters';
+import type { CharacterId } from '../three/Characters';
 
 function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
