@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { ShoulderAngles } from '../mediapipe/shoulderExtractor';
 
 import {
     createCharacterScene,
@@ -6,9 +7,9 @@ import {
 } from '../three/CharacterScene';
 
 import {
-    CHARACTER_MODELS,
+    CHARACTER_RIGS,
     type CharacterId,
-} from '../three/characters';
+} from '../three/Characters';
 
 interface CharacterViewProps {
     angles: {
@@ -17,11 +18,13 @@ interface CharacterViewProps {
         roll: number;
     };
 
+    bodyAngles: ShoulderAngles | null;
     character: CharacterId;
 }
 
 function CharacterView({
     angles,
+    bodyAngles,
     character,
 }: CharacterViewProps) {
     const containerRef =
@@ -39,7 +42,7 @@ function CharacterView({
         controllerRef.current =
             createCharacterScene(
                 container,
-                CHARACTER_MODELS[character]
+                CHARACTER_RIGS[character]
             );
 
         return () => {
@@ -48,7 +51,7 @@ function CharacterView({
         };
     }, [character]);
 
-    // 각도가 바뀔 때 Head Bone 회전
+    // 각도 또는 캐릭터가 바뀌면 목과 머리의 목표 회전 전달
     useEffect(() => {
         controllerRef.current?.setHeadAngles(
             angles.yaw,
@@ -59,7 +62,15 @@ function CharacterView({
         angles.yaw,
         angles.pitch,
         angles.roll,
+        character,
     ]);
+
+    const bodyYaw = bodyAngles?.yaw;
+    const bodyRoll = bodyAngles?.roll;
+    useEffect(() => {
+        if (bodyYaw === undefined || bodyRoll === undefined) return;
+        controllerRef.current?.setBodyAngles(bodyYaw, bodyRoll);
+    }, [bodyYaw, bodyRoll, character]);
 
     return (
         <div

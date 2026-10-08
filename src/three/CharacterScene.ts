@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { loadCharacter } from './loadCharacter';
+import type { CharacterRig } from './Characters';
+import { createNeckController } from './neckController';
 
 export interface CharacterController {
     setHeadAngles: (
@@ -8,12 +10,13 @@ export interface CharacterController {
         roll: number
     ) => void;
 
+    setBodyAngles: (yaw: number, roll: number) => void;
     dispose: () => void;
 }
 
 export function createCharacterScene(
     container: HTMLDivElement,
-    modelPath: string
+    rig: CharacterRig
 ): CharacterController {
     const scene = new THREE.Scene();
 
@@ -52,13 +55,13 @@ export function createCharacterScene(
     directionalLight.position.set(2, 3, 4);
     scene.add(directionalLight);
 
-    // Head Bone
-    let headBone: THREE.Bone | null = null;
+    let neckController: ReturnType<typeof createNeckController> | null = null;
+    let disposed = false;
+    const latestBodyAngles = { yaw: 0, roll: 0 };
+    const latestAngles = { yaw: 0, pitch: 0, roll: 0 };
 
-    // Head Bone의 원래 회전값
-    const headBaseRotation = new THREE.Euler();
-
-    loadCharacter(modelPath, (model) => {
+    loadCharacter(rig.modelPath, (model) => {
+        if (disposed) return;
         scene.add(model);
 
         // 모델 크기와 중심 계산
@@ -87,61 +90,33 @@ export function createCharacterScene(
 
         camera.lookAt(0, 0, 0);
 
-        // Head Bone 찾기
-        const head = model.getObjectByName('Head');
-
-        if (head instanceof THREE.Bone) {
-            headBone = head;
-
-            // Blender에서 설정한 기본 회전값 저장
-            headBaseRotation.copy(head.rotation);
-
-            console.log(
-                'Head Bone 연결 성공:',
-                headBone
-            );
-        } else {
-            console.error(
-                'Head Bone을 찾지 못했습니다.'
-            );
+        try {
+            neckController = createNeckController(model, rig);
+            neckController.setAngles(latestAngles.yaw, latestAngles.pitch, latestAngles.roll);
+            neckController.setBodyAngles(latestBodyAngles.yaw, latestBodyAngles.roll);
+        } catch (error) {
+            console.error('목 관절 연결 실패:', error);
         }
-
-        console.log(
-            '캐릭터 모델 로드 완료:',
-            modelPath
-        );
     });
 
-    function setHeadAngles(
-        yaw: number,
-        pitch: number,
-        roll: number
-    ) {
-        if (!headBone) return;
+    function setHeadAngles(yaw: number, pitch: number, roll: number) {
+        Object.assign(latestAngles, { yaw, pitch, roll });
+        neckController?.setAngles(yaw, pitch, roll);
+    }
 
-        const yawRad =
-            THREE.MathUtils.degToRad(yaw);
-
-        const pitchRad =
-            THREE.MathUtils.degToRad(pitch);
-
-        const rollRad =
-            THREE.MathUtils.degToRad(roll);
-
-        // 현재 GLB Bone 축에 맞춘 방향
-        headBone.rotation.x =
-            headBaseRotation.x - pitchRad;
-
-        headBone.rotation.y =
-            headBaseRotation.y + yawRad;
-
-        headBone.rotation.z =
-            headBaseRotation.z + rollRad;
+    function setBodyAngles(yaw: number, roll: number) {
+        Object.assign(latestBodyAngles, { yaw, roll });
+        neckController?.setBodyAngles(yaw, roll);
     }
 
     let animationFrameId = 0;
 
+    let lastFrameTime = performance.now();
+
     function animate() {
+        const now = performance.now();
+        neckController?.update(Math.min((now - lastFrameTime) / 1000, 0.1));
+        lastFrameTime = now;
         animationFrameId =
             requestAnimationFrame(animate);
 
@@ -151,6 +126,7 @@ export function createCharacterScene(
     animate();
 
     function dispose() {
+        disposed = true;
         cancelAnimationFrame(animationFrameId);
 
         renderer.dispose();
@@ -164,6 +140,7 @@ export function createCharacterScene(
 
     return {
         setHeadAngles,
+        setBodyAngles,
         dispose,
     };
 }
