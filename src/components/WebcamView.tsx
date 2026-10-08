@@ -1,6 +1,12 @@
 // 사용자 Video를 보여주는 컴포넌트
 import { useEffect, useRef, useState } from 'react';
-import { DrawingUtils, FaceLandmarker } from '@mediapipe/tasks-vision';
+import {
+    DrawingUtils,
+    FaceLandmarker,
+    PoseLandmarker,
+} from '@mediapipe/tasks-vision';
+
+import { usePoseLandmarker } from '../hooks/usePoseLandmarker';
 
 import { useWebcam } from '../hooks/useWebcam';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
@@ -8,6 +14,8 @@ import { extractHeadAngles } from '../mediapipe/motionExtractor';
 import { calibrateAngles } from '../motion/calibrate';
 
 import { detectMotion } from '../motion/motionDetector';
+import CharacterView from './CharacterView';
+import type { CharacterId } from '../three/characters';
 
 function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -25,6 +33,7 @@ function WebcamView() {
     } = useWebcam();
 
     const faceResult = useFaceLandmarker(videoElement);
+    const poseResult = usePoseLandmarker(videoElement);
 
     // 원본 머리 각도
     const [angles, setAngles] = useState({
@@ -47,12 +56,19 @@ function WebcamView() {
         roll: 0,
     });
 
+    const [selectedCharacter, setSelectedCharacter] =
+        useState<CharacterId>('chicken');
+
     // 화면의 각도 숫자는 100ms마다 갱신하기 위한 값
     const lastAngleUpdateRef = useRef(0);
 
-    const currentMotion = calibration
-        ? detectMotion(calibratedAngles)
-        : 'CENTER';
+    // 가장 최근에 측정된 실제 각도
+    // 화면 표시 주기와 관계없이 Calibration에 사용
+    const latestAnglesRef = useRef({
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+    });
 
     // 웹캠 stream을 video에 연결
     useEffect(() => {
@@ -62,12 +78,12 @@ function WebcamView() {
         }
     }, [stream]);
 
-    // 얼굴 Landmarks 시각화
+    // 얼굴, 자세 Landmarks 시각화
     useEffect(() => {
         const canvas = canvasRef.current;
         const video = videoRef.current;
 
-        if (!canvas || !video || !faceResult) return;
+        if (!canvas || !video) return;
 
         const ctx = canvas.getContext('2d');
 
@@ -80,58 +96,90 @@ function WebcamView() {
 
         const drawingUtils = new DrawingUtils(ctx);
 
-        for (const landmarks of faceResult.faceLandmarks) {
-            // 얼굴 전체 Mesh
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_TESSELATION,
-                {
-                    color: 'rgba(255, 255, 255, 0.35)',
-                    lineWidth: 0.5,
-                }
-            );
+        // Face Landmarks
+        if (faceResult) {
+            for (const landmarks of faceResult.faceLandmarks) {
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+                    {
+                        color: 'rgba(255, 255, 255, 0.35)',
+                        lineWidth: 0.5,
+                    }
+                );
 
-            // 얼굴 윤곽
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
-                {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+                    {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        lineWidth: 1,
+                    }
+                );
 
-            // 왼쪽 눈
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
-                {
-                    color: 'rgba(0, 255, 0, 0.8)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+                    {
+                        color: 'rgba(0, 255, 0, 0.8)',
+                        lineWidth: 1,
+                    }
+                );
 
-            // 오른쪽 눈
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
-                {
-                    color: 'rgba(0, 150, 255, 0.8)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+                    {
+                        color: 'rgba(0, 150, 255, 0.8)',
+                        lineWidth: 1,
+                    }
+                );
 
-            // 입
-            drawingUtils.drawConnectors(
-                landmarks,
-                FaceLandmarker.FACE_LANDMARKS_LIPS,
-                {
-                    color: 'rgba(255, 80, 80, 0.8)',
-                    lineWidth: 1,
-                }
-            );
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    FaceLandmarker.FACE_LANDMARKS_LIPS,
+                    {
+                        color: 'rgba(255, 80, 80, 0.8)',
+                        lineWidth: 1,
+                    }
+                );
+            }
         }
-    }, [faceResult]);
+
+        // Pose Landmarks
+        if (poseResult) {
+            for (const landmarks of poseResult.landmarks) {
+
+                const bodyConnections =
+                    PoseLandmarker.POSE_CONNECTIONS.filter(
+                        (connection) =>
+                            connection.start >= 11 &&
+                            connection.end >= 11
+                    );
+
+                drawingUtils.drawConnectors(
+                    landmarks,
+                    bodyConnections,
+                    {
+                        color: 'rgba(255, 255, 0, 0.8)',
+                        lineWidth: 2,
+                    }
+                );
+
+                const bodyLandmarks = landmarks.filter(
+                    (_, index) => index >= 11
+                );
+
+                drawingUtils.drawLandmarks(
+                    bodyLandmarks,
+                    {
+                        color: 'rgba(255, 100, 0, 0.9)',
+                        radius: 3,
+                    }
+                );
+            }
+        }
+    }, [faceResult, poseResult]);
 
     // Transformation Matrix → yaw / pitch / roll 변환
     useEffect(() => {
@@ -144,24 +192,24 @@ function WebcamView() {
 
         const headAngles = extractHeadAngles(matrix.data);
 
+        // 가장 최신 각도는 항상 저장
+        latestAnglesRef.current = headAngles;
+
+        // 게임 / 3D 캐릭터용 각도는 새 결과마다 갱신
+        if (calibration) {
+            const correctedAngles = calibrateAngles(
+                headAngles,
+                calibration
+            );
+
+            setCalibratedAngles(correctedAngles);
+        }
+
         const now = performance.now();
 
-        // 화면에 표시하는 각도값은 100ms마다 한 번만 갱신
-        // MediaPipe 추론 자체는 모든 새 프레임에서 계속 수행됨
+        // 화면에 표시하는 숫자만 100ms마다 갱신
         if (now - lastAngleUpdateRef.current >= 100) {
             setAngles(headAngles);
-
-            // 정면 기준이 설정되어 있다면
-            // 현재 각도에서 기준 각도를 빼서 상대적인 움직임 계산
-            if (calibration) {
-                const correctedAngles = calibrateAngles(
-                    headAngles,
-                    calibration
-                );
-
-                setCalibratedAngles(correctedAngles);
-            }
-
             lastAngleUpdateRef.current = now;
         }
     }, [faceResult, calibration]);
@@ -169,9 +217,7 @@ function WebcamView() {
     // 현재 자세를 정면 기준으로 설정
     function handleCalibration() {
         setCalibration({
-            yaw: angles.yaw,
-            pitch: angles.pitch,
-            roll: angles.roll,
+            ...latestAnglesRef.current,
         });
 
         // 버튼을 누른 순간은 정면이므로 0으로 표시
@@ -184,6 +230,21 @@ function WebcamView() {
 
     const faceDetected =
         (faceResult?.faceLandmarks.length ?? 0) > 0;
+
+    const trackingValid =
+        faceDetected && calibration !== null;
+
+    const currentMotion = trackingValid
+        ? detectMotion(calibratedAngles)
+        : null;
+
+    const poseDetected =
+        (poseResult?.landmarks.length ?? 0) > 0;
+
+    const poseLandmarks = poseResult?.landmarks?.[0];
+
+    const leftShoulder = poseLandmarks?.[11];
+    const rightShoulder = poseLandmarks?.[12];
 
     return (
         <div>
@@ -252,6 +313,29 @@ function WebcamView() {
                 {faceDetected ? ' 인식됨' : ' 인식 안 됨'}
             </p>
 
+            <p>
+                자세 인식:
+                {poseDetected ? ' 인식됨' : ' 인식 안 됨'}
+            </p>
+
+            {leftShoulder && rightShoulder && (
+                <div>
+                    <h3>어깨 좌표</h3>
+
+                    <p>
+                        왼쪽 어깨:
+                        x {leftShoulder.x.toFixed(2)},
+                        y {leftShoulder.y.toFixed(2)}
+                    </p>
+
+                    <p>
+                        오른쪽 어깨:
+                        x {rightShoulder.x.toFixed(2)},
+                        y {rightShoulder.y.toFixed(2)}
+                    </p>
+                </div>
+            )}
+
             <div>
                 <h3>원본 각도</h3>
                 <p>Yaw: {angles.yaw.toFixed(1)}°</p>
@@ -278,8 +362,28 @@ function WebcamView() {
                     <p>정면 기준을 설정해주세요.</p>
                 )}
             </div>
-            <p>현재 동작: {currentMotion}</p>
+            <p>
+                현재 동작:
+                {currentMotion ?? ' 추적 대기'}
+            </p>
+            <div>
+                <button
+                    onClick={() => setSelectedCharacter('chicken')}
+                >
+                    닭
+                </button>
 
+                <button
+                    onClick={() => setSelectedCharacter('ostrich')}
+                >
+                    타조
+                </button>
+            </div>
+
+            <CharacterView
+                angles={calibratedAngles}
+                character={selectedCharacter}
+            />
             {error && <p>{error}</p>}
         </div>
     );
