@@ -62,3 +62,28 @@
 - `public/models`
   - MediaPipe 모델 및 3D 모델 파일 저장
   - 예: `face_landmarker.task`, `pose_landmarker.task`, `ostrich.glb`
+
+## 실행 방법
+### 1. Node.js 및 npm 설치
+프로젝트 실행을 위해 Node.js와 npm이 필요합니다.  
+- [Node.js 공식 다운로드 페이지]  (https://nodejs.org/ko)  
+
+Node.js를 설치할 시 npm도 같이 다운로드 됩니다.
+
+설치 후 터미널에서 버전을 확인합니다.
+```bash
+node -v
+npm -v
+```
+
+### 2. 프로젝트 클론
+```bash
+git clone <레포지토리 URL>
+cd <프로젝트 경로>
+```
+
+### 3. 의존성 패키지 설치 및 실행
+```bash
+npm ci      # 의존성 패키지 설치 명령어
+npm run dev # 실행 명령어
+```
