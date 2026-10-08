@@ -11,6 +11,7 @@ import { usePoseLandmarker } from '../hooks/usePoseLandmarker';
 import { useWebcam } from '../hooks/useWebcam';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
 import { extractHeadAngles } from '../mediapipe/motionExtractor';
+import { extractShoulderAngles, calibrateShoulders, type ShoulderAngles } from '../mediapipe/shoulderExtractor';
 import { calibrateAngles } from '../motion/calibrate';
 
 import { detectMotion } from '../motion/motionDetector';
@@ -34,6 +35,12 @@ function WebcamView() {
 
     const faceResult = useFaceLandmarker(videoElement);
     const poseResult = usePoseLandmarker(videoElement);
+
+    const [shoulderCalibration, setShoulderCalibration] = useState<ShoulderAngles | null>(null);
+    const shoulderAngles = stream ? extractShoulderAngles(poseResult?.worldLandmarks?.[0]) : null;
+    const bodyAngles = shoulderAngles && shoulderCalibration
+        ? calibrateShoulders(shoulderAngles, shoulderCalibration)
+        : null;
 
     // 원본 머리 각도
     const [angles, setAngles] = useState({
@@ -216,6 +223,7 @@ function WebcamView() {
 
     // 현재 자세를 정면 기준으로 설정
     function handleCalibration() {
+        if (shoulderAngles) setShoulderCalibration(shoulderAngles);
         setCalibration({
             ...latestAnglesRef.current,
         });
@@ -304,8 +312,22 @@ function WebcamView() {
                     onClick={handleCalibration}
                     disabled={!faceDetected}
                 >
-                    정면 기준 설정
+                    정면 기준 설정 (머리·어깨)
                 </button>
+            </div>
+
+            <div>
+                <button
+                    disabled={!shoulderAngles}
+                    onClick={() => { if (shoulderAngles) setShoulderCalibration(shoulderAngles); }}
+                >
+                    어깨 기준 다시 설정
+                </button>
+                <p>어깨 추적: {shoulderAngles ? '인식됨' : '양쪽 어깨가 보이도록 앉아주세요.'}</p>
+                {!shoulderCalibration && <p>어깨를 정면으로 두고 기준을 설정해주세요.</p>}
+                {bodyAngles && <p>
+                    몸통 회전: {bodyAngles.yaw.toFixed(1)}° / 기울임: {bodyAngles.roll.toFixed(1)}°
+                </p>}
             </div>
 
             <p>
@@ -382,6 +404,7 @@ function WebcamView() {
 
             <CharacterView
                 angles={calibratedAngles}
+                bodyAngles={bodyAngles}
                 character={selectedCharacter}
             />
             {error && <p>{error}</p>}

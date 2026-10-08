@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { ShoulderAngles } from '../mediapipe/shoulderExtractor';
 
 import {
     createCharacterScene,
@@ -17,11 +18,13 @@ interface CharacterViewProps {
         roll: number;
     };
 
+    bodyAngles: ShoulderAngles | null;
     character: CharacterId;
 }
 
 function CharacterView({
     angles,
+    bodyAngles,
     character,
 }: CharacterViewProps) {
     const containerRef =
@@ -61,6 +64,13 @@ function CharacterView({
         angles.roll,
         character,
     ]);
+
+    const bodyYaw = bodyAngles?.yaw;
+    const bodyRoll = bodyAngles?.roll;
+    useEffect(() => {
+        if (bodyYaw === undefined || bodyRoll === undefined) return;
+        controllerRef.current?.setBodyAngles(bodyYaw, bodyRoll);
+    }, [bodyYaw, bodyRoll, character]);
 
     return (
         <div

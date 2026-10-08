@@ -60,7 +60,12 @@ for (const [name, rig] of Object.entries(CHARACTER_RIGS)) {
         const model = loadSkeleton(rig.modelPath);
         const head = model.getObjectByName('Head');
         const rest = head.getWorldQuaternion(new THREE.Quaternion());
-        const controller = createNeckController(model, rig);
+        // 화면에서 조정하는 캐릭터 설정과 별개로 배율/제한 계산을 검증합니다.
+        const controller = createNeckController(model, {
+            ...rig,
+            gain: { ...rig.gain, pitchDown: 1.8, pitchUp: 1.2 },
+            limits: { ...rig.limits, pitch: 40 },
+        });
         for (const [input, output] of [[-10, 18], [10, -12], [-30, 40], [0, 0]]) {
             controller.setAngles(0, input, 0);
             controller.update(10);
@@ -155,3 +160,51 @@ test('ostrich: downward transition is continuous, frame-rate independent and ret
         });
     }
 });
+
+for (const [name, rig] of Object.entries(CHARACTER_RIGS)) {
+    test(`${name}: body follows shoulders without adding rotation to the head`, () => {
+        const model = loadSkeleton(rig.modelPath);
+        const head = model.getObjectByName('Head');
+        const body = model.getObjectByName('Body');
+        const restHead = head.getWorldQuaternion(new THREE.Quaternion()).normalize();
+        const restBody = body.getWorldQuaternion(new THREE.Quaternion()).normalize();
+        const restLocals = rig.joints.map(({ name }) => model.getObjectByName(name).quaternion.clone());
+        const controller = createNeckController(model, rig);
+        controller.setBodyAngles(20, 10);
+        controller.setAngles(20, 0, 10);
+        controller.update(10);
+        const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+            0, THREE.MathUtils.degToRad(24), THREE.MathUtils.degToRad(12),
+        ));
+        const worldDelta = restHead.clone().multiply(rotation).multiply(restHead.clone().invert());
+        closeRotation(body.getWorldQuaternion(new THREE.Quaternion()), worldDelta.clone().multiply(restBody));
+        closeRotation(head.getWorldQuaternion(new THREE.Quaternion()), restHead.clone().multiply(rotation));
+        // 얼굴과 몸통 방향이 같다면 목의 상대 회전은 기본 자세입니다.
+        rig.joints.forEach(({ name }, i) => closeRotation(model.getObjectByName(name).quaternion, restLocals[i]));
+        controller.setAngles(0, 0, 0);
+        controller.update(10);
+        closeRotation(head.getWorldQuaternion(new THREE.Quaternion()), restHead);
+        closeRotation(body.getWorldQuaternion(new THREE.Quaternion()), worldDelta.clone().multiply(restBody));
+        controller.setBodyAngles(0, 0);
+        controller.update(10);
+        closeRotation(body.getWorldQuaternion(new THREE.Quaternion()), restBody);
+        rig.joints.forEach(({ name }, i) => closeRotation(model.getObjectByName(name).quaternion, restLocals[i]));
+    });
+    test(`${name}: shoulder smoothing is frame-rate independent with bounded inputs`, () => {
+        const results = [30, 60, 120].map(fps => {
+            const model = loadSkeleton(rig.modelPath);
+            const controller = createNeckController(model, rig);
+            controller.setBodyAngles(1000, -1000);
+            controller.setBodyAngles(NaN, 0);
+            for (let i = 0; i < fps; i++) controller.update(1 / fps);
+            return model.getObjectByName('Body').getWorldQuaternion(new THREE.Quaternion());
+        });
+        closeRotation(results[0], results[1]);
+        closeRotation(results[1], results[2]);
+        const model = loadSkeleton(rig.modelPath);
+        const controller = createNeckController(model, rig);
+        controller.setBodyAngles(rig.body.limits.yaw / rig.body.gain.yaw, -rig.body.limits.roll / rig.body.gain.roll);
+        controller.update(1);
+        closeRotation(results[0], model.getObjectByName('Body').getWorldQuaternion(new THREE.Quaternion()));
+    });
+}

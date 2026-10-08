@@ -10,6 +10,7 @@ export interface CharacterController {
         roll: number
     ) => void;
 
+    setBodyAngles: (yaw: number, roll: number) => void;
     dispose: () => void;
 }
 
@@ -56,6 +57,7 @@ export function createCharacterScene(
 
     let neckController: ReturnType<typeof createNeckController> | null = null;
     let disposed = false;
+    const latestBodyAngles = { yaw: 0, roll: 0 };
     const latestAngles = { yaw: 0, pitch: 0, roll: 0 };
 
     loadCharacter(rig.modelPath, (model) => {
@@ -91,6 +93,7 @@ export function createCharacterScene(
         try {
             neckController = createNeckController(model, rig);
             neckController.setAngles(latestAngles.yaw, latestAngles.pitch, latestAngles.roll);
+            neckController.setBodyAngles(latestBodyAngles.yaw, latestBodyAngles.roll);
         } catch (error) {
             console.error('목 관절 연결 실패:', error);
         }
@@ -99,6 +102,11 @@ export function createCharacterScene(
     function setHeadAngles(yaw: number, pitch: number, roll: number) {
         Object.assign(latestAngles, { yaw, pitch, roll });
         neckController?.setAngles(yaw, pitch, roll);
+    }
+
+    function setBodyAngles(yaw: number, roll: number) {
+        Object.assign(latestBodyAngles, { yaw, roll });
+        neckController?.setBodyAngles(yaw, roll);
     }
 
     let animationFrameId = 0;
@@ -132,6 +140,7 @@ export function createCharacterScene(
 
     return {
         setHeadAngles,
+        setBodyAngles,
         dispose,
     };
 }
