@@ -65,12 +65,12 @@
 
 ## 실행 방법
 ### 1. Node.js 및 npm 설치
-프로젝트 실행을 위해 Node.js와 npm이 필요합니다.  
+프로젝트 실행을 위해 Node.js와 npm이 필요.  
 - [Node.js 공식 다운로드 페이지]  (https://nodejs.org/ko)  
 
-Node.js를 설치할 시 npm도 같이 다운로드 됩니다.
+Node.js를 설치할 시 npm도 같이 다운로드되므로 참고.
 
-설치 후 터미널에서 버전을 확인합니다.
+설치 후 터미널에서 버전을 확인.
 ```bash
 node -v
 npm -v
