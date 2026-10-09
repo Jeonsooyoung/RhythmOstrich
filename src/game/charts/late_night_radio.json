@@ -1,0 +1,34 @@
+{
+    "id": "late_night_radio",
+    "title": "Late Night Radio",
+    "artist": "Kevin MacLeod",
+    "audio": "/audio/late_night_radio.mp3",
+    "bpm": 72,
+    "offsetSec": 0.275,
+    "beatsPerBar": 4,
+    "judge": {
+        "windowBeats": 6,
+        "holdBeats": 4,
+        "dropToleranceSec": 0.3
+    },
+    "notes": [
+        { "motion": "FLEXION", "callBeat": 4, "responseBeat": 8 },
+        { "motion": "EXTENSION", "callBeat": 16, "responseBeat": 20 },
+        { "motion": "LEFT_TILT", "callBeat": 28, "responseBeat": 32 },
+        { "motion": "RIGHT_TILT", "callBeat": 40, "responseBeat": 44 },
+        { "motion": "LEFT_TURN", "callBeat": 52, "responseBeat": 56 },
+        { "motion": "RIGHT_TURN", "callBeat": 64, "responseBeat": 68 },
+        { "motion": "FLEXION", "callBeat": 76, "responseBeat": 80 },
+        { "motion": "EXTENSION", "callBeat": 88, "responseBeat": 92 },
+        { "motion": "LEFT_TILT", "callBeat": 100, "responseBeat": 104 },
+        { "motion": "RIGHT_TILT", "callBeat": 112, "responseBeat": 116 },
+        { "motion": "LEFT_TURN", "callBeat": 124, "responseBeat": 128 },
+        { "motion": "RIGHT_TURN", "callBeat": 136, "responseBeat": 140 },
+        { "motion": "FLEXION", "callBeat": 148, "responseBeat": 152 },
+        { "motion": "EXTENSION", "callBeat": 160, "responseBeat": 164 },
+        { "motion": "LEFT_TILT", "callBeat": 172, "responseBeat": 176 },
+        { "motion": "RIGHT_TILT", "callBeat": 184, "responseBeat": 188 },
+        { "motion": "LEFT_TURN", "callBeat": 196, "responseBeat": 200 },
+        { "motion": "RIGHT_TURN", "callBeat": 208, "responseBeat": 212 }
+    ]
+}

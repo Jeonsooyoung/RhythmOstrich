@@ -1,0 +1,22 @@
+{
+    "id": "tutorial",
+    "title": "Study And Relax",
+    "artist": "Kevin MacLeod",
+    "audio": "/audio/study_and_relax.mp3",
+    "bpm": 72,
+    "offsetSec": 0.08,
+    "beatsPerBar": 4,
+    "judge": {
+        "windowBeats": 6,
+        "holdBeats": 4,
+        "dropToleranceSec": 0.3
+    },
+    "notes": [
+        { "motion": "FLEXION", "callBeat": 4, "responseBeat": 8 },
+        { "motion": "EXTENSION", "callBeat": 16, "responseBeat": 20 },
+        { "motion": "LEFT_TILT", "callBeat": 28, "responseBeat": 32 },
+        { "motion": "RIGHT_TILT", "callBeat": 40, "responseBeat": 44 },
+        { "motion": "LEFT_TURN", "callBeat": 52, "responseBeat": 56 },
+        { "motion": "RIGHT_TURN", "callBeat": 64, "responseBeat": 68 }
+    ]
+}
