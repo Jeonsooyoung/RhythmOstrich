@@ -5,8 +5,10 @@ import type { NoteData, NoteResult } from '../types/game';
 /**
  * 목표 동작에서 잠깐 벗어나도 유지로 인정하는 시간(초)
  * 동작 판별 기준값(yaw 20도 등) 근처에서 프레임마다 동작이 튀는 것을 봐주기 위함
+ * 기본값은 docs/rhythm-design.md 기준(0.3초 미만 이탈 허용)이며,
+ * 실제 게임에서는 채보의 judge.dropToleranceSec 값을 넘겨서 사용
  */
-export const DEFAULT_GRACE_TIME = 0.4;
+export const DEFAULT_GRACE_TIME = 0.3;
 
 export type HoldStatus =
     | 'WAITING'  // 아직 responseStart 전
@@ -55,9 +57,9 @@ export function createHoldJudge(
         } else if (
             holdStart !== null &&
             lastInside !== null &&
-            judgeTime - lastInside > graceTime
+            judgeTime - lastInside >= graceTime
         ) {
-            // 유예 시간보다 오래 벗어나면 처음부터 다시
+            // 유예 시간 이상 벗어나면 처음부터 다시
             holdStart = null;
             lastInside = null;
         }
