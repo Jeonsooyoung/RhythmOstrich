@@ -5,7 +5,8 @@ import { useSelectedCharacter } from '../state/characterSelection';
 import { useWebcam } from '../hooks/useWebcam';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
 import { extractHeadAngles } from '../mediapipe/motionExtractor';
-import { setHeadCalibration, useHeadCalibration } from '../state/headCalibration';
+import type { CalibrationSnapshot } from '../types/session';
+import type { CharacterId } from '../types/character';
 import { calibrateAngles } from '../motion/calibrate';
 import { detectMotion } from '../motion/motionDetector';
 import { characterPoses, getCharacterPoseImage } from '../data/characterPoses';
@@ -32,11 +33,9 @@ interface CameraPreviewProps {
   onVideo: (video: HTMLVideoElement | null) => void;
   trackingStatus: string;
   trackingError: string | null;
-  onCalibrate: () => void;
-  canCalibrate: boolean;
 }
 
-function CameraPreview({ camera, onVideo, trackingStatus, trackingError, onCalibrate, canCalibrate }: CameraPreviewProps) {
+function CameraPreview({ camera, onVideo, trackingStatus, trackingError }: CameraPreviewProps) {
   const { stream, error, isLoading, startCamera, stopCamera } = camera;
   const video = useRef<HTMLVideoElement>(null);
   const attachVideo = useCallback((element: HTMLVideoElement | null) => {
@@ -55,25 +54,30 @@ function CameraPreview({ camera, onVideo, trackingStatus, trackingError, onCalib
     </div>
     {error && <p className="play-camera-error" role="status">{error}</p>}
     <button className="play-camera-toggle" onClick={stream ? stopCamera : startCamera} disabled={isLoading}>{isLoading ? '카메라 연결 중…' : stream ? '카메라 끄기' : '카메라 켜기'}</button>
-    <button className="play-camera-toggle play-temp-calibrate" onClick={onCalibrate} disabled={!canCalibrate}>임시 정면 기준 설정</button>
     <p className="play-camera-caption" role="status">{trackingStatus}</p>
     {stream && trackingError && <p className="play-camera-error" role="alert">{trackingError}</p>}
   </section>;
 }
 
-export default function GamePlay() {
+interface GamePlayProps {
+  camera: ReturnType<typeof useWebcam>;
+  calibration?: CalibrationSnapshot | null;
+  characterId?: CharacterId;
+  onAbort?: () => void;
+}
+
+export default function GamePlay({ camera, calibration: snapshot, characterId, onAbort }: GamePlayProps) {
   const selected = useSelectedCharacter();
-  const character = characters.find(item => item.id === selected) ?? characters[0];
+  const character = characters.find(item => item.id === (characterId ?? selected)) ?? characters[0];
   const [phase, setPhase] = useState(0);
   const [paused, setPaused] = useState(false);
-  const camera = useWebcam();
   const [note, setNote] = useState(() => ({ index: Math.floor(Math.random() * lanes.length), serial: 0, success: false }));
   const lane = lanes[note.index];
   const noteAnimation = useRef<SVGAnimateMotionElement>(null);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const faceResult = useFaceLandmarker(camera.stream ? videoElement : null, setTrackingError);
-  const calibration = useHeadCalibration();
+  const calibration = snapshot?.head;
   const matrix = faceResult?.facialTransformationMatrixes?.[0];
   const faceDetected = !!camera.stream && (faceResult?.faceLandmarks.length ?? 0) > 0 && !!matrix;
   const angles = faceDetected && matrix ? extractHeadAngles(matrix.data) : null;
@@ -83,11 +87,8 @@ export default function GamePlay() {
   const trackingStatus = !camera.stream ? '카메라를 켜면 자세를 따라해요'
     : paused ? '일시정지 중이에요'
     : !faceDetected ? '얼굴이 화면에 보이도록 앉아주세요'
-    : !calibration ? '정면을 보고 임시 정면 기준 설정을 눌러주세요'
-    : '자세 인식 중 · 고개 움직임을 따라해요';
-  function calibrateFront() {
-    if (angles && !paused) setHeadCalibration(angles);
-  }
+    : !calibration ? '정면 맞추기 화면에서 기준을 설정해 주세요'
+    : '저장한 정면 기준 적용 중 · 고개 움직임을 따라해요';
   const matched = !paused && faceDetected && !!calibration && !trackingError && motion === lane.motion;
   useEffect(() => {
     if (!matched || note.success) return;
@@ -169,9 +170,10 @@ export default function GamePlay() {
         </section>
         <aside className="play-sidebar" aria-label="게임 정보">
           <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>000000</strong><div className="play-score-foot"><span>SCORE</span><span>집계 대기</span></div></section>
-          <CameraPreview camera={{ ...camera, startCamera: () => { setTrackingError(null); return camera.startCamera(); } }} onVideo={setVideoElement} trackingStatus={trackingStatus} trackingError={trackingError} onCalibrate={calibrateFront} canCalibrate={!!angles && !paused} />
+          <CameraPreview camera={{ ...camera, startCamera: () => { setTrackingError(null); return camera.startCamera(); } }} onVideo={setVideoElement} trackingStatus={trackingStatus} trackingError={trackingError} />
           <div className="play-friend"><img src={character.image} alt=""/><p><strong>{character.name}와 함께하고 있어요</strong><span>작은 움직임도 멋진 리듬이 돼요.</span></p></div>
           <button className="play-pause" aria-pressed={paused} onClick={() => setPaused(value => !value)}><span aria-hidden="true">{paused ? '▷' : 'Ⅱ'}</span>{paused ? '이어하기' : '일시정지'}</button>
+          {onAbort && <button className="play-camera-toggle" onClick={onAbort}>노래 고르기로</button>}
         </aside>
       </div>
       <footer className="play-progress play-card"><span className="play-progress-note" aria-hidden="true">♫</span><div className="play-progress-main"><div className="play-progress-heading"><strong>오늘의 리듬</strong><span>곡 진행 · 미리보기</span></div><div className="play-progress-track" role="progressbar" aria-label="곡 진행 미리보기" aria-valuemin={0} aria-valuemax={100} aria-valuenow={35} aria-valuetext="35%, 화면 배치용 예시"><span /></div></div><span className="play-progress-status">음악 준비 중</span></footer>

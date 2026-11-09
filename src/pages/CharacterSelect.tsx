@@ -3,11 +3,20 @@ import type { CSSProperties } from 'react';
 import { characters } from '../data/characters';
 import { selectCharacter, useSelectedCharacter } from '../state/characterSelection';
 import { canToggleCharacterLock, isCharacterUnlocked, lockCharacter, unlockCharacter, useCharacterUnlocks } from '../state/characterUnlock';
+import type { CharacterId } from '../types/character';
 import './CharacterSelect.css';
 
 const DURATION = 460;
 
-export default function CharacterSelect() {
+interface CharacterSelectProps {
+  /** 선택 완료 시 다음 화면으로 (진행 화면에서 사용) */
+  onConfirm?: (id: CharacterId) => void;
+  onBack?: () => void;
+  /** 상단 단계 번호 (진행 순서에서 몇 번째 화면인지) */
+  stepNumber?: string;
+}
+
+export default function CharacterSelect({ onConfirm, onBack, stepNumber = '01' }: CharacterSelectProps = {}) {
   const saved = useSelectedCharacter();
   useCharacterUnlocks();
   const [index, setIndex] = useState(() => Math.max(0, characters.findIndex(c => c.id === saved)));
@@ -64,7 +73,7 @@ export default function CharacterSelect() {
       <nav className="garden-nav" aria-label="화면 메뉴">
         <a className="garden-brand" href="#character-select"><span aria-hidden="true">♬</span> 리듬타조<span className="brand-dot">.</span></a>
         <span className="garden-label">작은 움직임, 즐거운 리듬</span>
-        <span className="step-tag">01 <span>/</span> 친구 만나기</span>
+        <span className="step-tag">{stepNumber} <span>/</span> 친구 만나기</span>
       </nav>
       <div className="garden-content">
         <header className="selection-heading">
@@ -105,9 +114,11 @@ export default function CharacterSelect() {
           <div className="page-indicators" aria-label="캐릭터 위치">
             {characters.map((item, position) => <button key={item.id} aria-label={`${item.name} 선택`} aria-current={position === index ? 'true' : undefined} disabled={moving} onClick={() => move((position - index + characters.length) % characters.length)} className={position === index ? 'active' : ''} />)}
           </div>
-          <button className="confirm-character" disabled={moving || isRestricted} onClick={() => { if (isRestricted) return; selectCharacter(character.id); setConfirmed(true); }}>{confirmed ? '선택 완료!' : '선택 완료'} <span aria-hidden="true">{isRestricted ? '🔒' : confirmed ? '✓' : '→'}</span></button>
+          <button className="confirm-character" disabled={moving || isRestricted} onClick={() => { if (isRestricted) return; selectCharacter(character.id); setConfirmed(true); onConfirm?.(character.id); }}>{confirmed ? '선택 완료!' : '선택 완료'} <span aria-hidden="true">{isRestricted ? '🔒' : confirmed ? '✓' : '→'}</span></button>
           <p id="character-availability" className="selection-status" role="status">{isRestricted ? '아직 선택할 수 없습니다.' : confirmed ? `${character.name}와 함께할 준비가 되었어요!` : justUnlocked ? `${character.name}의 잠금이 해제되었어요!` : '마음에 드는 친구와 리듬을 시작해요.'}</p>
-          <a className="selection-back" href="#camera">← 뒤로가기</a>
+          {onBack
+            ? <button type="button" className="selection-back" onClick={onBack}>← 뒤로가기</button>
+            : <a className="selection-back" href="#camera">← 뒤로가기</a>}
         </section>
       </div>
       <div className="garden-floor" aria-hidden="true"><span className="garden-sprout">♧</span><span className="floor-flower flower-one">✿</span><span className="floor-flower flower-two">✿</span><span className="floor-flower flower-three">✿</span><span className="seed-trail">· · ·</span><span className="garden-caption">매일 조금씩, 즐겁게 움직여요</span><span className="grass-tuft">⌁⌁</span></div>
