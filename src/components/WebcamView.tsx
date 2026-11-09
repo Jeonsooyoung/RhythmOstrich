@@ -17,14 +17,8 @@ import { calibrateAngles } from '../motion/calibrate';
 import { detectMotion } from '../motion/motionDetector';
 import CharacterView from './CharacterView';
 import type { CharacterId } from '../three/Characters';
-import type { CalibrationSnapshot } from '../types/session';
 
-interface WebcamViewProps {
-    /** 정면 기준을 설정했을 때 보정값을 밖으로 전달 (진행 화면에서 사용) */
-    onCalibrated?: (calibration: CalibrationSnapshot) => void;
-}
-
-function WebcamView({ onCalibrated }: WebcamViewProps = {}) {
+function WebcamView() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -232,10 +226,6 @@ function WebcamView({ onCalibrated }: WebcamViewProps = {}) {
         if (shoulderAngles) setShoulderCalibration(shoulderAngles);
         setCalibration({
             ...latestAnglesRef.current,
-        });
-        onCalibrated?.({
-            head: { ...latestAnglesRef.current },
-            shoulder: shoulderAngles ?? null,
         });
 
         // 버튼을 누른 순간은 정면이므로 0으로 표시
