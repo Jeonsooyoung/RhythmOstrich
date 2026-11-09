@@ -5,11 +5,11 @@ import '../flow.css';
 interface SongSelectPageProps {
     charts: ChartData[];
     onSelect: (chartId: string) => void;
+    /** 이전 화면(정면 기준 잡기)으로 */
     onBack: () => void;
-    onRecalibrate: () => void;
 }
 
-export default function SongSelectPlaceholder({ charts, onSelect, onBack, onRecalibrate }: SongSelectPageProps) {
+export default function SongSelectPlaceholder({ charts, onSelect, onBack }: SongSelectPageProps) {
     return (
         <main className="flow-page">
             <span className="flow-placeholder-tag">임시 화면</span>
@@ -26,8 +26,7 @@ export default function SongSelectPlaceholder({ charts, onSelect, onBack, onReca
                 </section>
             ))}
             <div className="flow-actions">
-                <button type="button" onClick={onBack}>← 캐릭터 다시 고르기</button>
-                <button type="button" onClick={onRecalibrate}>정면 기준 다시 잡기</button>
+                <button type="button" onClick={onBack}>← 정면 기준 다시 잡기</button>
             </div>
         </main>
     );

@@ -14,7 +14,7 @@ function subscribeRoute(listener: () => void) {
 }
 const getRoute = () => window.location.hash;
 
-/** 전체 진행 순서: 사용자 ID → 사전 평가 → 정면 기준 → 캐릭터 → 곡 → 게임 → 사후 평가 → 결과 */
+/** 전체 진행 순서: 사용자 ID → 사전 평가 → 캐릭터 → 정면 기준 → 곡 → 게임 → 사후 평가 → 결과 */
 function GameFlow() {
   const { draft, phase, history, saveFailed, restoredNotice, dismissRestoredNotice, actions } = useSessionFlow();
 
@@ -45,7 +45,6 @@ function GameFlow() {
           charts={charts}
           onSelect={actions.selectSong}
           onBack={actions.back}
-          onRecalibrate={actions.recalibrate}
         />
       );
       break;

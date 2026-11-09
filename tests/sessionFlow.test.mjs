@@ -12,8 +12,8 @@ const run = (actions, draft = createDraft('s1')) => actions.reduce(sessionReduce
 const fullPlay = [
     { type: 'SET_USER', userId: ' user1 ' },
     { type: 'SUBMIT_PRE', assessment: pre },
-    { type: 'CALIBRATED', calibration },
     { type: 'SELECT_CHARACTER', characterId: 'ostrich' },
+    { type: 'CALIBRATED', calibration },
     { type: 'SELECT_SONG', chartId: 'tutorial', now: '2026-11-09T01:00:00Z' },
     { type: 'FINISH_GAME', result: game },
     { type: 'SUBMIT_POST', assessment: post, now: '2026-11-09T01:05:00Z' },
@@ -27,7 +27,7 @@ test('명세서 순서대로 화면이 진행됨', () => {
         phases.push(getPhase(draft));
     }
     assert.deepEqual(phases, [
-        'userId', 'preAssessment', 'calibration', 'character', 'song', 'game', 'postAssessment', 'result',
+        'userId', 'preAssessment', 'character', 'calibration', 'song', 'game', 'postAssessment', 'result',
     ]);
 });
 
@@ -80,10 +80,15 @@ test('처음으로: 모든 값이 비워짐', () => {
 
 test('뒤로 가기는 이전 단계 값만 비움, 게임 후에는 뒤로 못 감', () => {
     const atSong = run(fullPlay.slice(0, 4));
-    assert.equal(getPhase(sessionReducer(atSong, { type: 'BACK' })), 'character');
+    const backFromSong = sessionReducer(atSong, { type: 'BACK' });
+    assert.equal(getPhase(backFromSong), 'calibration');
+    assert.equal(backFromSong.characterId, 'ostrich');
 
-    const atCalibration = run(fullPlay.slice(0, 2));
-    const back = sessionReducer(atCalibration, { type: 'BACK' });
+    const atCalibration = run(fullPlay.slice(0, 3));
+    assert.equal(getPhase(sessionReducer(atCalibration, { type: 'BACK' })), 'character');
+
+    const atCharacter = run(fullPlay.slice(0, 2));
+    const back = sessionReducer(atCharacter, { type: 'BACK' });
     assert.equal(getPhase(back), 'preAssessment');
     assert.equal(back.previousPre, pre);
 
