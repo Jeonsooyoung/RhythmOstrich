@@ -1,12 +1,13 @@
 import { useSyncExternalStore } from 'react';
 import WebcamView from './components/WebcamView';
+import { stepNumber } from './data/flowSteps';
 import { charts, findChart } from './game/charts';
 import CalibrationPage from './pages/CalibrationPage';
 import CharacterSelect from './pages/CharacterSelect';
 import UserIdPage from './pages/UserIdPage';
 import { AssessmentPage, GamePage, ResultPage, SongSelectPage } from './pages/flowPages';
 import { useSessionFlow } from './state/useSessionFlow';
-import './pages/flow.css';
+import './styles/garden.css';
 
 function subscribeRoute(listener: () => void) {
   window.addEventListener('hashchange', listener);
@@ -33,20 +34,16 @@ function GameFlow() {
         />
       );
       break;
-    case 'calibration':
-      screen = <CalibrationPage onComplete={actions.calibrated} onBack={actions.back} />;
-      break;
     case 'character':
-      screen = <CharacterSelect onConfirm={actions.selectCharacter} onBack={actions.back} />;
+      screen = <CharacterSelect stepNumber={stepNumber('character')} onConfirm={actions.selectCharacter} onBack={actions.back} />;
+      break;
+    case 'calibration':
+      screen = draft.characterId && (
+        <CalibrationPage characterId={draft.characterId} onComplete={actions.calibrated} onBack={actions.back} />
+      );
       break;
     case 'song':
-      screen = (
-        <SongSelectPage
-          charts={charts}
-          onSelect={actions.selectSong}
-          onBack={actions.back}
-        />
-      );
+      screen = <SongSelectPage charts={charts} onSelect={actions.selectSong} onBack={actions.back} />;
       break;
     case 'game': {
       const chart = findChart(draft.chartId);
@@ -61,9 +58,9 @@ function GameFlow() {
           onAbort={actions.abortGame}
         />
       ) : (
-        <main className="flow-page">
+        <main className="garden-page">
           <p>곡 정보를 찾을 수 없어요.</p>
-          <div className="flow-actions"><button type="button" onClick={actions.abortGame}>곡 선택으로</button></div>
+          <button type="button" className="gp-button" onClick={actions.abortGame}>노래 고르기로</button>
         </main>
       );
       break;
@@ -87,7 +84,7 @@ function GameFlow() {
   return (
     <>
       {restoredNotice && (
-        <div className="flow-banner" role="status">
+        <div className="gp-banner" role="status">
           <span>진행 중이던 세션을 이어서 할게요.{phase === 'calibration' && ' 카메라가 다시 켜져서 정면 기준을 다시 잡아야 해요.'}</span>
           <span>
             <button type="button" onClick={dismissRestoredNotice}>확인</button>{' '}
@@ -96,7 +93,7 @@ function GameFlow() {
         </div>
       )}
       {saveFailed && phase === 'result' && (
-        <div className="flow-banner warning" role="alert">
+        <div className="gp-banner warning" role="alert">
           기록을 저장하지 못했어요. 브라우저 저장 공간이나 시크릿 모드 여부를 확인해 주세요.
         </div>
       )}

@@ -1,10 +1,11 @@
 // 임시 게임 화면 (1·2번 파트의 진짜 게임으로 교체 예정)
 // 버튼으로 가짜 결과를 만들어 다음 화면으로 넘김
 import { useState } from 'react';
+import GardenLayout from '../../components/GardenLayout';
 import { chartToNotes } from '../../game/chart';
+import { getPoseImage } from '../../data/characterPoses';
 import type { GamePageProps } from '../../types/pages';
 import type { GameResult, Judgment, NoteRecord, StretchDirection } from '../../types/session';
-import '../flow.css';
 
 const POINTS: Record<Judgment, number> = { PERFECT: 100, GOOD: 50, MISS: 0 };
 
@@ -43,28 +44,29 @@ export default function GamePlaceholder({ chart, characterId, onFinish, onAbort 
     const random = (): Judgment => (['PERFECT', 'GOOD', 'MISS'] as const)[Math.floor(Math.random() * 3)];
 
     return (
-        <main className="flow-page">
-            <span className="flow-placeholder-tag">임시 화면</span>
-            <h1>{chart.title}</h1>
-            <p className="flow-lead">캐릭터: {characterId} · 노트 {notes.length}개</p>
-            <section className="flow-card">
-                <h2>결과 만들기 (테스트용)</h2>
-                <div className="flow-actions">
-                    <button type="button" className="primary" onClick={() =>
+        <GardenLayout phase="game" eyebrow="NOW PLAYING" title={chart.title} subtitle={`동작 ${notes.length}개`}>
+            <span className="gp-placeholder-tag">임시 화면</span>
+            <div className="gp-buddy">
+                <div className="gp-buddy-frame"><img src={getPoseImage(characterId, 'CENTER')} alt="" /></div>
+            </div>
+            <section className="gp-card">
+                <h2>결과 만들기 <small>테스트용</small></h2>
+                <div className="gp-actions">
+                    <button type="button" className="gp-button primary" onClick={() =>
                         onFinish(makeResult(chart.id, notes, () => 'PERFECT', elapsed(), true))}>
                         전부 PERFECT로 끝내기
                     </button>
-                    <button type="button" onClick={() =>
+                    <button type="button" className="gp-button" onClick={() =>
                         onFinish(makeResult(chart.id, notes, random, elapsed(), true))}>
                         랜덤 판정으로 끝내기
                     </button>
-                    <button type="button" onClick={() =>
+                    <button type="button" className="gp-button" onClick={() =>
                         onFinish(makeResult(chart.id, notes.slice(0, Math.ceil(notes.length / 2)), random, elapsed(), false))}>
                         중간에 종료 (절반만 기록)
                     </button>
-                    <button type="button" onClick={onAbort}>기록 없이 그만두기</button>
                 </div>
             </section>
-        </main>
+            <button type="button" className="gp-link" onClick={onAbort}>기록 없이 그만두기</button>
+        </GardenLayout>
     );
 }
