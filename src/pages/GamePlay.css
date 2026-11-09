@@ -39,6 +39,13 @@
 .play-scene { position: relative; width: 100%; aspect-ratio: 1300 / 852; margin: 14px auto 0; overflow: hidden; border-radius: 14px; background: url('/apple-orchard.png') center / contain no-repeat; }
 .play-scene svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .play-food { filter: drop-shadow(0 3px 3px #40532980); }
+.play-tutorial-guide { grid-row: span 2; text-align: center; color: #52694f; }
+.play-tutorial-guide strong { font-size: 15px; }
+.play-tutorial-guide p { font-size: 13px; margin: 4px 0; }
+.play-tutorial-guide small { font-size: 11px; color: #7b8b70; }
+.play-tutorial-intro { position: absolute; inset: 0; display: grid; place-items: center; background: #faf8efe8; text-align: center; padding: 12px; }
+.play-tutorial-intro h2 { font-size: 18px; color: #52694f; }
+.play-tutorial-intro p { font-size: 12px; line-height: 1.8; color: #7b8b70; }
 .play-completion { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: #faf8efe8; text-align: center; }
 .play-completion > div { width: min(420px, 100%); padding: 32px; border: 1px solid #d8dfcc; border-radius: 28px; background: #fffdf6; box-shadow: 0 12px 40px #52694f20; }
 .play-completion > div > span { font-size: 42px; color: #bba56a; }

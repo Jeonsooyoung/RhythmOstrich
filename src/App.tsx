@@ -155,7 +155,7 @@ function GameFlow({ preview = false, characterSelect = false }: { preview?: bool
   }
 
   if (preview && phase !== 'postAssessment' && phase !== 'result') {
-    return <GamePlay onFinish={phase === 'game' ? actions.finishGame : undefined} chart={findChart(draft.chartId)} onCharacterSelect={returnToCharacter} camera={camera} calibration={draft.calibration} characterId={draft.characterId ?? undefined} />;
+    return <GamePlay onAbort={() => { actions.abortGame(); window.location.hash = ''; }} onFinish={phase === 'game' ? actions.finishGame : undefined} chart={findChart(draft.chartId)} onCharacterSelect={returnToCharacter} camera={camera} calibration={draft.calibration} characterId={draft.characterId ?? undefined} />;
   }
 
   return (

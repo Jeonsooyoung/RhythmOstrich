@@ -10,6 +10,7 @@ import type { CharacterId } from '../types/character';
 import type { ChartData } from '../game/chart';
 import { buildPlaybackResult, createPlayback } from '../game/playback';
 import { beatToSec } from '../game/chart';
+import { createTutorial, TUTORIAL_GUIDES } from '../game/tutorial';
 import type { MotionType } from '../motion/motionDetector';
 import { calibrateAngles } from '../motion/calibrate';
 import { detectMotion } from '../motion/motionDetector';
@@ -74,6 +75,9 @@ interface GamePlayProps {
 }
 
 export default function GamePlay({ chart, camera, calibration: snapshot, characterId, onAbort, onCharacterSelect, onFinish }: GamePlayProps) {
+  const isTutorial = chart?.id === 'tutorial';
+  const [tutorialStarted, setTutorialStarted] = useState(false);
+  const tutorialClock = useRef(0);
   const selected = useSelectedCharacter();
   const character = characters.find(item => item.id === (characterId ?? selected)) ?? characters[0];
   const [paused, setPaused] = useState(false);
@@ -101,7 +105,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
   const gameDuration = chart && lastNote ? beatToSec(chart, lastNote.responseBeat + chart.judge.windowBeats) : duration;
   const progress = completion ? 100 : gameDuration > 0 ? Math.min(100, currentTime / gameDuration * 100) : 0;
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-  const playback = useMemo(() => chart ? createPlayback(chart) : null, [chart]);
+  const playback = useMemo(() => chart ? isTutorial ? createTutorial(chart) : createPlayback(chart) : null, [chart, isTutorial]);
   const [frame, setFrame] = useState<ReturnType<ReturnType<typeof createPlayback>['update']> | null>(null);
   const phase = frame?.phase ?? 0;
   const lane = lanes.find(lane => lane.motion === frame?.motion);
@@ -132,14 +136,21 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
   useEffect(() => {
     if (!playback || completion) return;
     let request = 0;
+    let previous = performance.now();
     const tick = () => {
       const player = audio.current;
-      if (player && !paused && !player.paused && !player.seeking && player.readyState >= 2) {
-        const next = playback.update(player.currentTime, detectedMotion.current);
+      const now = performance.now();
+      const delta = Math.min((now - previous) / 1000, .1);
+      previous = now;
+      const tutorialRunning = isTutorial && tutorialStarted && !paused && !document.hidden;
+      if (tutorialRunning) tutorialClock.current += delta;
+      if (tutorialRunning || (player && !paused && !player.paused && !player.seeking && player.readyState >= 2)) {
+        const time = isTutorial ? tutorialClock.current : player!.currentTime;
+        const next = playback.update(time, detectedMotion.current);
         setFrame(next);
-        setCurrentTime(player.currentTime);
+        setCurrentTime(time);
         if (chart && chart.notes.length > 0 && next.results.length === chart.notes.length) {
-          setCompletion(buildPlaybackResult(chart, next.results, player.currentTime));
+          setCompletion(buildPlaybackResult(chart, next.results, time));
           return;
         }
       }
@@ -147,7 +158,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
     };
     request = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(request);
-  }, [playback, paused, completion, chart]);
+  }, [playback, paused, completion, chart, isTutorial, tutorialStarted]);
   useEffect(() => {
     if (!import.meta.env.DEV || !chart || !playback || completion) return;
     const finishEarly = (event: KeyboardEvent) => {
@@ -155,6 +166,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return;
       event.preventDefault();
+      if (isTutorial) { onAbort?.(); return; }
       const time = audio.current?.currentTime ?? 0;
       const result = buildPlaybackResult(chart, playback.update(time, detectedMotion.current).results, time);
       audio.current?.pause();
@@ -163,7 +175,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
     };
     window.addEventListener('keydown', finishEarly);
     return () => window.removeEventListener('keydown', finishEarly);
-  }, [chart, playback, completion, onFinish]);
+  }, [chart, playback, completion, onFinish, isTutorial, onAbort]);
   useEffect(() => {
     if (!completion) return;
     const player = audio.current;
@@ -174,7 +186,11 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
       const elapsed = performance.now() - startedAt;
       if (player) player.volume = originalVolume * Math.max(0, 1 - elapsed / 1500);
       if (elapsed >= 1500) player?.pause();
-      if (elapsed >= 2200) { onFinish?.(completion); return; }
+      if (elapsed >= 2200) {
+        if (isTutorial) onAbort?.();
+        else onFinish?.(completion);
+        return;
+      }
       request = requestAnimationFrame(finish);
     };
     request = requestAnimationFrame(finish);
@@ -182,7 +198,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
       cancelAnimationFrame(request);
       if (player) { player.pause(); player.volume = originalVolume; }
     };
-  }, [completion, onFinish]);
+  }, [completion, onFinish, isTutorial, onAbort]);
   useEffect(() => {
     // Cache all poses before the user turns, avoiding image fetches on each motion.
     Object.keys(characterPoses).forEach(key => {
@@ -191,7 +207,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
     });
   }, [character.image]);
   return <main className="play-page" style={{ '--friend-color': character.color } as CSSProperties}>
-    {chart && <audio key={chart.id} ref={audio} src={chart.audio} preload="auto"
+    {chart && !isTutorial && <audio key={chart.id} ref={audio} src={chart.audio} preload="auto"
       onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
       onLoadedMetadata={event => { setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0); setCurrentTime(0); }}
       onEnded={() => setPaused(true)}
@@ -199,13 +215,19 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
     <nav className="play-nav" aria-label="화면 메뉴">
       <button type="button" className="play-brand" onClick={onCharacterSelect} aria-label="캐릭터 선택 화면으로 이동"><img src="/logo.png" alt="" /> 리듬타조<span className="play-brand-dot">.</span></button>
       <span className="play-nav-caption">작은 움직임, 즐거운 리듬</span>
-      <span className="play-step">02 / 함께 리듬 타기</span>
+      <span className="play-step">{isTutorial ? "튜토리얼 · 음악 없이 연습" : "02 / 함께 리듬 타기"}</span>
     </nav>
     <div className="play-content">
       <div className="play-layout">
         <section className={`play-field play-card ${paused ? 'is-paused' : ''}`} aria-label="게임 플레이 공간">
+          {isTutorial ? <div className="play-tutorial-guide" role="status">
+            <strong>연습 {Math.min((frame?.index ?? 0) + 1, chart?.notes.length ?? 6)} / {chart?.notes.length ?? 6} · {characterPoses[frame?.motion ?? chart?.notes[0]?.motion ?? 'CENTER'].label}</strong>
+            <p>{TUTORIAL_GUIDES[frame?.motion ?? chart?.notes[0]?.motion ?? 'CENTER']}</p>
+            <small>{note.miss ? '괜찮아요! 같은 방향으로 다시 연습해요.' : note.success ? '잘했어요! 다음 방향을 연습해요.' : '맞는 자세를 2초 유지해 게이지를 채워 주세요.'}</small>
+          </div> : <>
           <div className="play-phase-tabs" aria-label="현재 진행 단계">{phases.map((item, index) => <button key={item.id} aria-pressed={phase === index} disabled><span>0{index + 1}</span> {item.id}</button>)}</div>
           <div className="play-instruction" role="status"><h2>{paused ? '잠시 쉬어가요' : phases[phase].title}</h2><p>{paused ? '준비되면 이어하기를 눌러주세요.' : frame?.active && phase !== 0 ? `${lane?.label ?? '목표 자세'} · 자세를 유지해 주세요` : '음악에 맞춰 준비해 주세요'}</p></div>
+          </>}
           <div className={`play-hold-gauge${note.success ? ' is-complete' : ''}${note.miss ? ' is-miss' : ''}`}
             role="progressbar" aria-label="자세 유지" aria-valuemin={0} aria-valuemax={100}
             aria-valuenow={Math.round((frame?.active && phase !== 0 ? frame.holdProgress : 0) * 100)}>
@@ -228,6 +250,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
               </g>}
             </svg>
             <div className="play-success-feedback" role="status" aria-live="polite">{note.success && <span key={note.serial}>SUCCESS <span aria-hidden="true">✦</span></span>}{note.miss && <span key={note.serial} className="play-miss">MISS</span>}</div>
+            {isTutorial && !tutorialStarted && <div className="play-tutorial-intro"><div><h2>먹이를 먹는 방법을 연습해요</h2><p>먹이가 오는 방향에 맞춰 고개를 움직여요.<br />자세를 유지해 게이지를 채우면 성공이에요.<br />놓쳐도 같은 동작을 다시 연습할 수 있어요.</p><button type="button" className="play-camera-toggle" onClick={() => setTutorialStarted(true)}>연습 시작</button></div></div>}
             {paused && <div className="play-paused-badge"><span aria-hidden="true">Ⅱ</span> 일시정지</div>}
           </div>
         </section>
@@ -244,10 +267,10 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
           }}>음악 재생</button></div>}
         </aside>
       </div>
-      <footer className="play-progress play-card"><span className="play-progress-note" aria-hidden="true">♫</span><div className="play-progress-main"><div className="play-progress-heading"><strong>{chart?.title ?? '노래를 선택해 주세요'}</strong><span>{formatTime(currentTime)} / {formatTime(gameDuration)}</span></div><div className="play-progress-track" role="progressbar" aria-label="곡 진행" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><span style={{ width: `${progress}%` }} /></div></div><span className="play-progress-status">{!chart ? '선택 대기' : audioError ? '재생 확인 필요' : paused ? '일시정지' : '음악 재생 중'}</span></footer>
+      {isTutorial ? <footer className="play-progress play-card"><div className="play-progress-main"><div className="play-progress-heading"><strong>음악 없이 동작 연습</strong><span>{frame?.results.length ?? 0} / {chart?.notes.length ?? 6} 완료</span></div><div className="play-progress-track" role="progressbar" aria-label="튜토리얼 진행" aria-valuemin={0} aria-valuemax={chart?.notes.length ?? 6} aria-valuenow={frame?.results.length ?? 0}><span style={{ width: `${(frame?.results.length ?? 0) / (chart?.notes.length || 6) * 100}%` }} /></div></div></footer> : <footer className="play-progress play-card"><span className="play-progress-note" aria-hidden="true">♫</span><div className="play-progress-main"><div className="play-progress-heading"><strong>{chart?.title ?? '노래를 선택해 주세요'}</strong><span>{formatTime(currentTime)} / {formatTime(gameDuration)}</span></div><div className="play-progress-track" role="progressbar" aria-label="곡 진행" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><span style={{ width: `${progress}%` }} /></div></div><span className="play-progress-status">{!chart ? '선택 대기' : audioError ? '재생 확인 필요' : paused ? '일시정지' : '음악 재생 중'}</span></footer>}
     </div>
     <div className="play-floor" aria-hidden="true">✿ <span>매일 조금씩, 즐겁게 움직여요</span> ♧</div>
-    {completion && <div className="play-completion" role="status"><div><span aria-hidden="true">✦</span><h1>수고했어요!</h1><p>동작 {completion.notes.length}개 중 {completion.notes.filter(note => note.judgment !== 'MISS').length}개 성공했어요.</p><p>{onFinish ? '잠시 후 운동 후 상태를 체크해요.' : '리듬 스트레칭을 마쳤어요.'}</p>{!onFinish && <button type="button" className="play-camera-toggle" onClick={onAbort ?? onCharacterSelect}>돌아가기</button>}</div></div>}
+    {completion && <div className="play-completion" role="status"><div><span aria-hidden="true">✦</span><h1>{isTutorial ? "연습을 마쳤어요!" : "수고했어요!"}</h1><p>동작 {completion.notes.length}개 중 {completion.notes.filter(note => note.judgment !== 'MISS').length}개 성공했어요.</p><p>{isTutorial ? '이제 노래를 골라 함께 해봐요.' : onFinish ? '잠시 후 운동 후 상태를 체크해요.' : '리듬 스트레칭을 마쳤어요.'}</p>{!onFinish && <button type="button" className="play-camera-toggle" onClick={onAbort ?? onCharacterSelect}>돌아가기</button>}</div></div>}
   </main>;
 }
 
