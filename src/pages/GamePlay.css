@@ -39,6 +39,11 @@
 .play-scene { position: relative; width: 100%; aspect-ratio: 1300 / 852; margin: 14px auto 0; overflow: hidden; border-radius: 14px; background: url('/apple-orchard.png') center / contain no-repeat; }
 .play-scene svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .play-food { filter: drop-shadow(0 3px 3px #40532980); }
+.play-completion { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: #faf8efe8; text-align: center; }
+.play-completion > div { width: min(420px, 100%); padding: 32px; border: 1px solid #d8dfcc; border-radius: 28px; background: #fffdf6; box-shadow: 0 12px 40px #52694f20; }
+.play-completion > div > span { font-size: 42px; color: #bba56a; }
+.play-completion h1 { font-size: 30px; color: #52694f; }
+.play-completion p { font-size: 14px; color: #7b8b70; }
 .play-success-feedback { position: absolute; top: 13%; left: 0; width: 100%; display: flex; justify-content: center; pointer-events: none; }
 .play-success-feedback > span { padding: 8px 23px; border: 2px solid #fffdf4; border-radius: 24px; background: #e9eddb; color: #657e55; font-size: clamp(18px, 3vw, 27px); font-weight: 900; box-shadow: 0 4px 0 #d8dfcc; animation: play-success-pop .25s ease-out both; }
 .play-success-feedback > span > span { margin-left: 6px; color: #bba56a; }

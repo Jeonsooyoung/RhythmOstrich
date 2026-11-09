@@ -5,10 +5,11 @@ import { useSelectedCharacter } from '../state/characterSelection';
 import { useWebcam } from '../hooks/useWebcam';
 import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
 import { extractHeadAngles } from '../mediapipe/motionExtractor';
-import type { CalibrationSnapshot } from '../types/session';
+import type { CalibrationSnapshot, GameResult } from '../types/session';
 import type { CharacterId } from '../types/character';
 import type { ChartData } from '../game/chart';
-import { createPlayback } from '../game/playback';
+import { buildPlaybackResult, createPlayback } from '../game/playback';
+import { beatToSec } from '../game/chart';
 import type { MotionType } from '../motion/motionDetector';
 import { calibrateAngles } from '../motion/calibrate';
 import { detectMotion } from '../motion/motionDetector';
@@ -69,12 +70,14 @@ interface GamePlayProps {
   calibration?: CalibrationSnapshot | null;
   characterId?: CharacterId;
   onAbort?: () => void;
+  onFinish?: (result: GameResult) => void;
 }
 
-export default function GamePlay({ chart, camera, calibration: snapshot, characterId, onAbort, onCharacterSelect }: GamePlayProps) {
+export default function GamePlay({ chart, camera, calibration: snapshot, characterId, onAbort, onCharacterSelect, onFinish }: GamePlayProps) {
   const selected = useSelectedCharacter();
   const character = characters.find(item => item.id === (characterId ?? selected)) ?? characters[0];
   const [paused, setPaused] = useState(false);
+  const [completion, setCompletion] = useState<GameResult | null>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -94,7 +97,9 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
     else playMusic();
     return () => player.pause();
   }, [chart, paused, playMusic]);
-  const progress = duration > 0 ? Math.min(100, currentTime / duration * 100) : 0;
+  const lastNote = chart?.notes.at(-1);
+  const gameDuration = chart && lastNote ? beatToSec(chart, lastNote.responseBeat + chart.judge.windowBeats) : duration;
+  const progress = completion ? 100 : gameDuration > 0 ? Math.min(100, currentTime / gameDuration * 100) : 0;
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
   const playback = useMemo(() => chart ? createPlayback(chart) : null, [chart]);
   const [frame, setFrame] = useState<ReturnType<ReturnType<typeof createPlayback>['update']> | null>(null);
@@ -125,19 +130,59 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
     detectedMotion.current = faceDetected && calibration && !trackingError ? motion : null;
   }, [faceDetected, calibration, trackingError, motion]);
   useEffect(() => {
-    if (!playback) return;
+    if (!playback || completion) return;
     let request = 0;
     const tick = () => {
       const player = audio.current;
       if (player && !paused && !player.paused && !player.seeking && player.readyState >= 2) {
-        setFrame(playback.update(player.currentTime, detectedMotion.current));
+        const next = playback.update(player.currentTime, detectedMotion.current);
+        setFrame(next);
         setCurrentTime(player.currentTime);
+        if (chart && chart.notes.length > 0 && next.results.length === chart.notes.length) {
+          setCompletion(buildPlaybackResult(chart, next.results, player.currentTime));
+          return;
+        }
       }
       request = requestAnimationFrame(tick);
     };
     request = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(request);
-  }, [playback, paused]);
+  }, [playback, paused, completion, chart]);
+  useEffect(() => {
+    if (!import.meta.env.DEV || !chart || !playback || completion) return;
+    const finishEarly = (event: KeyboardEvent) => {
+      if (event.repeat || !event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey || event.code !== 'KeyE') return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return;
+      event.preventDefault();
+      const time = audio.current?.currentTime ?? 0;
+      const result = buildPlaybackResult(chart, playback.update(time, detectedMotion.current).results, time);
+      audio.current?.pause();
+      if (onFinish) onFinish(result);
+      else setCompletion(result);
+    };
+    window.addEventListener('keydown', finishEarly);
+    return () => window.removeEventListener('keydown', finishEarly);
+  }, [chart, playback, completion, onFinish]);
+  useEffect(() => {
+    if (!completion) return;
+    const player = audio.current;
+    const originalVolume = player?.volume ?? 1;
+    const startedAt = performance.now();
+    let request = 0;
+    const finish = () => {
+      const elapsed = performance.now() - startedAt;
+      if (player) player.volume = originalVolume * Math.max(0, 1 - elapsed / 1500);
+      if (elapsed >= 1500) player?.pause();
+      if (elapsed >= 2200) { onFinish?.(completion); return; }
+      request = requestAnimationFrame(finish);
+    };
+    request = requestAnimationFrame(finish);
+    return () => {
+      cancelAnimationFrame(request);
+      if (player) { player.pause(); player.volume = originalVolume; }
+    };
+  }, [completion, onFinish]);
   useEffect(() => {
     // Cache all poses before the user turns, avoiding image fetches on each motion.
     Object.keys(characterPoses).forEach(key => {
@@ -187,10 +232,10 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
           </div>
         </section>
         <aside className="play-sidebar" aria-label="게임 정보">
-          <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>000000</strong><div className="play-score-foot"><span>SCORE</span><span>집계 대기</span></div></section>
+          <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>{String(completion?.score ?? (frame?.results.filter(result => result.result === 'SUCCESS').length ?? 0) * 100).padStart(6, '0')}</strong><div className="play-score-foot"><span>SCORE</span><span>{completion ? '완료' : '진행 중'}</span></div></section>
           <CameraPreview camera={{ ...camera, startCamera: () => { setTrackingError(null); return camera.startCamera(); } }} onVideo={setVideoElement} trackingStatus={trackingStatus} trackingError={trackingError} />
           <div className="play-friend"><img src={character.image} alt=""/><p><strong>{character.name}와 함께하고 있어요</strong><span>작은 움직임도 멋진 리듬이 돼요.</span></p></div>
-          <button className="play-pause" aria-pressed={paused} onClick={() => setPaused(value => !value)}><span aria-hidden="true">{paused ? '▷' : 'Ⅱ'}</span>{paused ? '이어하기' : '일시정지'}</button>
+          <button className="play-pause" disabled={!!completion} aria-pressed={paused} onClick={() => setPaused(value => !value)}><span aria-hidden="true">{paused ? '▷' : 'Ⅱ'}</span>{paused ? '이어하기' : '일시정지'}</button>
           {onAbort && <button className="play-camera-toggle" onClick={onAbort}>노래 고르기로</button>}
           {audioError && <div role="alert"><p>{audioError}</p><button type="button" className="play-camera-toggle" onClick={() => {
             if (audio.current?.error) audio.current.load();
@@ -199,9 +244,10 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
           }}>음악 재생</button></div>}
         </aside>
       </div>
-      <footer className="play-progress play-card"><span className="play-progress-note" aria-hidden="true">♫</span><div className="play-progress-main"><div className="play-progress-heading"><strong>{chart?.title ?? '노래를 선택해 주세요'}</strong><span>{formatTime(currentTime)} / {formatTime(duration)}</span></div><div className="play-progress-track" role="progressbar" aria-label="곡 진행" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><span style={{ width: `${progress}%` }} /></div></div><span className="play-progress-status">{!chart ? '선택 대기' : audioError ? '재생 확인 필요' : paused ? '일시정지' : '음악 재생 중'}</span></footer>
+      <footer className="play-progress play-card"><span className="play-progress-note" aria-hidden="true">♫</span><div className="play-progress-main"><div className="play-progress-heading"><strong>{chart?.title ?? '노래를 선택해 주세요'}</strong><span>{formatTime(currentTime)} / {formatTime(gameDuration)}</span></div><div className="play-progress-track" role="progressbar" aria-label="곡 진행" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><span style={{ width: `${progress}%` }} /></div></div><span className="play-progress-status">{!chart ? '선택 대기' : audioError ? '재생 확인 필요' : paused ? '일시정지' : '음악 재생 중'}</span></footer>
     </div>
     <div className="play-floor" aria-hidden="true">✿ <span>매일 조금씩, 즐겁게 움직여요</span> ♧</div>
+    {completion && <div className="play-completion" role="status"><div><span aria-hidden="true">✦</span><h1>수고했어요!</h1><p>동작 {completion.notes.length}개 중 {completion.notes.filter(note => note.judgment !== 'MISS').length}개 성공했어요.</p><p>{onFinish ? '잠시 후 운동 후 상태를 체크해요.' : '리듬 스트레칭을 마쳤어요.'}</p>{!onFinish && <button type="button" className="play-camera-toggle" onClick={onAbort ?? onCharacterSelect}>돌아가기</button>}</div></div>}
   </main>;
 }
 

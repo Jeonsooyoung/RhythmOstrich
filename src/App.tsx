@@ -38,7 +38,7 @@ function GameFlow({ preview = false, characterSelect = false }: { preview?: bool
 
   const { stopCamera } = camera;
   useEffect(() => {
-    if (characterSelect || (!preview && phase !== 'calibration' && phase !== 'game')) stopCamera();
+    if (characterSelect || phase === 'postAssessment' || phase === 'result' || (!preview && phase !== 'calibration' && phase !== 'game')) stopCamera();
   }, [phase, preview, characterSelect, stopCamera]);
 
   let screen;
@@ -107,6 +107,7 @@ function GameFlow({ preview = false, characterSelect = false }: { preview?: bool
           characterId={draft.characterId}
           calibration={draft.calibration}
           onAbort={actions.abortGame}
+          onFinish={actions.finishGame}
         />
       ) : (
         <main className="garden-page">
@@ -153,8 +154,8 @@ function GameFlow({ preview = false, characterSelect = false }: { preview?: bool
     }} />;
   }
 
-  if (preview) {
-    return <GamePlay chart={findChart(draft.chartId)} onCharacterSelect={returnToCharacter} camera={camera} calibration={draft.calibration} characterId={draft.characterId ?? undefined} />;
+  if (preview && phase !== 'postAssessment' && phase !== 'result') {
+    return <GamePlay onFinish={phase === 'game' ? actions.finishGame : undefined} chart={findChart(draft.chartId)} onCharacterSelect={returnToCharacter} camera={camera} calibration={draft.calibration} characterId={draft.characterId ?? undefined} />;
   }
 
   return (

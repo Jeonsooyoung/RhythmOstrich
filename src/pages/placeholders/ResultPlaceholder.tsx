@@ -69,7 +69,7 @@ export default function ResultPlaceholder({ record, history, onReplay, onReplayW
             </section>
 
             <div className="gp-actions">
-                <button type="button" className="gp-button primary" onClick={onReplay}>다시 하기 <span aria-hidden="true">↻</span></button>
+                <button type="button" className="gp-button primary" onClick={onReplay}>다른 노래 하기 <span aria-hidden="true">↻</span></button>
                 <button type="button" className="gp-button" onClick={onReplayWithReassess}>상태 체크부터 다시</button>
                 <button type="button" className="gp-button" onClick={onHome}>처음으로</button>
             </div>

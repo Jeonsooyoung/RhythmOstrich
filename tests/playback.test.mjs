@@ -1,10 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createPlayback } from '../src/game/playback.ts';
+import { buildPlaybackResult, createPlayback } from '../src/game/playback.ts';
 import { beatToSec } from '../src/game/chart.ts';
 
 const load = name => JSON.parse(readFileSync(new URL(`../src/game/charts/${name}.json`, import.meta.url), 'utf8'));
+
+test('모든 동작의 판정이 끝나면 실제 성공·실패, 점수와 최대 콤보를 기록', () => {
+    const chart = load('tutorial');
+    const playback = createPlayback(chart);
+    let frame;
+    for (const [index, note] of chart.notes.entries()) {
+        const start = beatToSec(chart, note.responseBeat);
+        if (index === 2) frame = playback.update(beatToSec(chart, note.responseBeat + chart.judge.windowBeats), null);
+        else {
+            playback.update(start, note.motion);
+            frame = playback.update(start + chart.judge.holdBeats * 60 / chart.bpm + .001, note.motion);
+        }
+    }
+    const result = buildPlaybackResult(chart, frame.results, frame.time);
+    assert.equal(result.completed, true);
+    assert.equal(result.notes.length, 6);
+    assert.equal(result.notes[2].judgment, 'MISS');
+    assert.equal(result.score, 500);
+    assert.equal(result.maxCombo, 3);
+    assert.ok(result.playTimeSec < beatToSec(chart, chart.notes.at(-1).responseBeat + chart.judge.windowBeats));
+    assert.equal(buildPlaybackResult(chart, frame.results.slice(0, 2), 10).completed, false);
+});
 
 for (const name of ['tutorial', 'bleeping_demo']) {
     test(`${name}: BPM과 오프셋에 맞춰 준비, 출발, 중간 이동, 도착`, () => {

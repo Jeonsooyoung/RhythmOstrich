@@ -1,6 +1,24 @@
 import { beatToSec, chartToNotes, createChartJudge } from './chart.ts';
 import type { ChartData } from './chart';
 import type { MotionType } from '../motion/motionDetector';
+import type { NoteResult } from '../types/game';
+import type { GameResult, NoteRecord, StretchDirection } from '../types/session';
+
+export function buildPlaybackResult(chart: ChartData, results: NoteResult[], time: number): GameResult {
+    const notes: NoteRecord[] = chart.notes.flatMap((note, index) => {
+        const result = results.find(result => result.noteId === index + 1);
+        return result ? [{ noteId: index + 1, motion: note.motion as StretchDirection,
+            judgment: result.result === 'SUCCESS' ? 'PERFECT' as const : 'MISS' as const }] : [];
+    });
+    let combo = 0;
+    let maxCombo = 0;
+    for (const note of notes) {
+        combo = note.judgment === 'MISS' ? 0 : combo + 1;
+        maxCombo = Math.max(maxCombo, combo);
+    }
+    return { chartId: chart.id, notes, score: notes.filter(note => note.judgment !== 'MISS').length * 100,
+        maxCombo, playTimeSec: time, completed: notes.length === chart.notes.length };
+}
 
 /** 음악 시간만으로 이동·진행 단계·유지 판정을 결정한다. */
 export function createPlayback(chart: ChartData) {
