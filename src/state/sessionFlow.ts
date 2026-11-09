@@ -54,6 +54,7 @@ export interface SessionDraft {
 }
 
 export type SessionAction =
+    | { type: 'RETURN_TO_CHARACTER' }
     | { type: 'SET_USER'; userId: string }
     | { type: 'SUBMIT_PRE'; assessment: SelfAssessment }
     | { type: 'CALIBRATED'; calibration: CalibrationSnapshot }
@@ -115,6 +116,8 @@ const clearPlay = (draft: SessionDraft): SessionDraft => ({
 
 export function sessionReducer(draft: SessionDraft, action: SessionAction): SessionDraft {
     switch (action.type) {
+        case 'RETURN_TO_CHARACTER':
+            return { ...clearPlay(draft), characterId: null, calibration: null };
         case 'SET_USER':
             return { ...draft, userId: action.userId.trim() || null };
 
@@ -125,7 +128,7 @@ export function sessionReducer(draft: SessionDraft, action: SessionAction): Sess
             return { ...draft, calibration: action.calibration };
 
         case 'SELECT_CHARACTER':
-            return { ...draft, characterId: action.characterId };
+            return { ...clearPlay(draft), characterId: action.characterId, calibration: null };
 
         case 'SELECT_SONG':
             return { ...clearPlay(draft), calibration: null, chartId: action.chartId, startedAt: action.now };

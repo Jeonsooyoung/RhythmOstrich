@@ -20,7 +20,7 @@ export default function GardenLayout({ phase, title, subtitle, eyebrow, width = 
     return (
         <main className="garden-page">
             <nav className="gp-nav" aria-label="진행 단계">
-                <span className="gp-brand"><span aria-hidden="true">♬</span> 리듬타조<span className="gp-brand-dot">.</span></span>
+                <a className="gp-brand" href="#character-select" aria-label="캐릭터 선택 화면으로 이동"><img src="/logo.png" alt="" /> 리듬타조<span className="gp-brand-dot">.</span></a>
                 <span className="gp-nav-label">작은 움직임, 즐거운 리듬</span>
                 <span className="gp-step">{stepNumber(phase)} <span>/</span> {STEP_LABELS[phase]}</span>
             </nav>

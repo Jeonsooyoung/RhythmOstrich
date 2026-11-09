@@ -24,7 +24,7 @@ function subscribeRoute(listener: () => void) {
 const getRoute = () => window.location.hash;
 
 /** 전체 진행 순서: 사용자 ID → 사전 평가 → 캐릭터 → 곡 → 정면 기준 → 게임 → 사후 평가 → 결과 */
-function GameFlow({ preview = false }: { preview?: boolean }) {
+function GameFlow({ preview = false, characterSelect = false }: { preview?: boolean; characterSelect?: boolean }) {
   const camera = useWebcam();
   const {
     draft,
@@ -38,10 +38,15 @@ function GameFlow({ preview = false }: { preview?: boolean }) {
 
   const { stopCamera } = camera;
   useEffect(() => {
-    if (!preview && phase !== 'calibration' && phase !== 'game') stopCamera();
-  }, [phase, preview, stopCamera]);
+    if (characterSelect || (!preview && phase !== 'calibration' && phase !== 'game')) stopCamera();
+  }, [phase, preview, characterSelect, stopCamera]);
 
   let screen;
+  const returnToCharacter = () => {
+    camera.stopCamera();
+    actions.returnToCharacter();
+    window.location.hash = '#character-select';
+  };
 
   switch (phase) {
     case 'userId':
@@ -95,6 +100,8 @@ function GameFlow({ preview = false }: { preview?: boolean }) {
 
       screen = chart && draft.characterId && draft.calibration ? (
         <GamePage
+          chart={chart}
+          onCharacterSelect={returnToCharacter}
           camera={camera}
           key={draft.sessionId}
           characterId={draft.characterId}
@@ -139,8 +146,15 @@ function GameFlow({ preview = false }: { preview?: boolean }) {
       break;
   }
 
+  if (characterSelect) {
+    return <CharacterSelect stepNumber={stepNumber('character')} onConfirm={id => {
+      actions.selectCharacter(id);
+      window.location.hash = '';
+    }} />;
+  }
+
   if (preview) {
-    return <GamePlay camera={camera} calibration={draft.calibration} characterId={draft.characterId ?? undefined} />;
+    return <GamePlay chart={findChart(draft.chartId)} onCharacterSelect={returnToCharacter} camera={camera} calibration={draft.calibration} characterId={draft.characterId ?? undefined} />;
   }
 
   return (
@@ -201,7 +215,7 @@ function App() {
     );
   }
 
-  return <GameFlow preview={route === '#game'} />;
+  return <GameFlow preview={route === '#game'} characterSelect={route === '#character-select'} />;
 }
 
 export default App;

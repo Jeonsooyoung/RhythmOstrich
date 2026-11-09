@@ -6,7 +6,9 @@
 .play-page button:focus-visible, .play-page a:focus-visible { outline: 3px solid #7a729d; outline-offset: 4px; }
 .play-nav { max-width: 1400px; margin: auto; padding: 30px 5%; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .play-brand { display: flex; align-items: center; gap: 9px; color: #52694f; text-decoration: none; font-weight: 900; font-size: 23px; letter-spacing: -1.2px; white-space: nowrap; }
-.play-brand > span:first-child { display: grid; place-items: center; width: 37px; height: 37px; background: #ecf0de; border: 2px solid #7e9675; border-radius: 12px; font-size: 27px; }
+.play-brand { border: 0; padding: 0; background: transparent; font-family: inherit; cursor: pointer; }
+.play-brand > img { width: 36px; height: 36px; object-fit: contain; }
+.play-brand:focus-visible { outline: 3px solid #7e9675; outline-offset: 5px; border-radius: 8px; }
 .play-brand-dot { color: #d3ab67; margin-left: -8px; }
 .play-nav-caption { font-size: 12px; letter-spacing: 1.8px; color: #8c9681; }
 .play-step { padding: 8px 15px; border-radius: 30px; background: #eeeee2; color: #78856d; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -35,6 +37,7 @@
 .play-success-feedback { position: absolute; top: 13%; left: 0; width: 100%; display: flex; justify-content: center; pointer-events: none; }
 .play-success-feedback > span { padding: 8px 23px; border: 2px solid #fffdf4; border-radius: 24px; background: #e9eddb; color: #657e55; font-size: clamp(18px, 3vw, 27px); font-weight: 900; box-shadow: 0 4px 0 #d8dfcc; animation: play-success-pop .25s ease-out both; }
 .play-success-feedback > span > span { margin-left: 6px; color: #bba56a; }
+.play-success-feedback > .play-miss { background: #f5e3dc; color: #a45d4e; box-shadow: 0 4px 0 #e7c9bf; }
 @keyframes play-success-pop { from { opacity: 0; transform: translateY(8px) scale(.85); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .play-ring-label { font: 11px 'Malgun Gothic', sans-serif; fill: #8f9c7e; letter-spacing: 2px; }
 .play-turn-label { font: 11px 'Malgun Gothic', sans-serif; fill: #a49b88; }

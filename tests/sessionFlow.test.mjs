@@ -114,6 +114,16 @@ test('곡을 다시 고르면 이전 정면 기준을 지우고 새로 맞춤', 
     assert.equal(ready.calibration, calibration);
 });
 
+test('로고로 캐릭터 선택에 돌아가면 플레이와 보정은 지우고 사전 평가는 유지', () => {
+    const draft = sessionReducer(run(fullPlay.slice(0, 5)), { type: 'RETURN_TO_CHARACTER' });
+    assert.equal(getPhase(draft), 'character');
+    assert.equal(draft.pre, pre);
+    assert.equal(draft.chartId, null);
+    assert.equal(draft.calibration, null);
+    const selected = sessionReducer(draft, { type: 'SELECT_CHARACTER', characterId: 'ostrich' });
+    assert.equal(getPhase(selected), 'song');
+});
+
 test('새로고침 복구: 입력 화면은 그대로, 게임 중이었다면 보정부터', () => {
     const atPost = run(fullPlay.slice(0, 6));
     assert.equal(getPhase(restoreDraft(JSON.parse(JSON.stringify(atPost)))), 'postAssessment');

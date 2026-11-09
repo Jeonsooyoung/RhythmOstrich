@@ -5,7 +5,7 @@ import type { ChartData } from '../../game/chart';
 interface SongSelectPageProps {
     charts: ChartData[];
     onSelect: (chartId: string) => void;
-    /** 이전 화면(정면 기준 잡기)으로 */
+    /** 이전 화면(캐릭터 선택)으로 */
     onBack: () => void;
 }
 
@@ -37,7 +37,7 @@ export default function SongSelectPlaceholder({ charts, onSelect, onBack }: Song
                     </section>
                 );
             })}
-            <button type="button" className="gp-link" onClick={onBack}>← 정면 기준 다시 잡기</button>
+            <button type="button" className="gp-link" onClick={onBack}>← 캐릭터 다시 고르기</button>
         </GardenLayout>
     );
 }

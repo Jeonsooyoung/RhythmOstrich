@@ -57,6 +57,7 @@ export function useSessionFlow() {
     }, [draft.record]);
 
     const actions = useMemo(() => ({
+        returnToCharacter: () => dispatch({ type: 'RETURN_TO_CHARACTER' }),
         setUser(userId: string) {
             setLastUserId(userId.trim());
             dispatch({ type: 'SET_USER', userId });
