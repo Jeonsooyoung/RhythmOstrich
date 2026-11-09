@@ -12,9 +12,11 @@ interface CharacterSelectProps {
   /** 선택 완료 시 다음 화면으로 (진행 화면에서 사용) */
   onConfirm?: (id: CharacterId) => void;
   onBack?: () => void;
+  /** 상단 단계 번호 (진행 순서에서 몇 번째 화면인지) */
+  stepNumber?: string;
 }
 
-export default function CharacterSelect({ onConfirm, onBack }: CharacterSelectProps = {}) {
+export default function CharacterSelect({ onConfirm, onBack, stepNumber = '01' }: CharacterSelectProps = {}) {
   const saved = useSelectedCharacter();
   useCharacterUnlocks();
   const [index, setIndex] = useState(() => Math.max(0, characters.findIndex(c => c.id === saved)));
@@ -71,7 +73,7 @@ export default function CharacterSelect({ onConfirm, onBack }: CharacterSelectPr
       <nav className="garden-nav" aria-label="화면 메뉴">
         <a className="garden-brand" href="#character-select"><span aria-hidden="true">♬</span> 리듬타조<span className="brand-dot">.</span></a>
         <span className="garden-label">작은 움직임, 즐거운 리듬</span>
-        <span className="step-tag">01 <span>/</span> 친구 만나기</span>
+        <span className="step-tag">{stepNumber} <span>/</span> 친구 만나기</span>
       </nav>
       <div className="garden-content">
         <header className="selection-heading">
