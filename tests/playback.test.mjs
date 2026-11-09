@@ -15,7 +15,7 @@ for (const name of ['tutorial', 'bleeping_demo']) {
         const start = beatToSec(chart, source.responseBeat);
         const end = beatToSec(chart, source.responseBeat + chart.judge.windowBeats);
         assert.equal(playback.update(call - .01, null).active, false);
-        assert.equal(playback.update(call, null).flying, false);
+        assert.equal(playback.update(call, null).flying, true);
         const departure = playback.update(start, null);
         assert.equal(departure.flying, true);
         assert.equal(departure.progress, 0);
@@ -56,5 +56,27 @@ test('음악 시간이 멈추면 먹이와 유지 시간도 그대로, 다음 �
     const next = playback.update(beatToSec(chart, chart.notes[1].callBeat), null);
     assert.equal(next.index, 1);
     assert.equal(next.motion, 'EXTENSION');
-    assert.equal(next.flying, false);
+    assert.equal(next.flying, true);
+});
+
+test('먹이는 8박 간격, 빠르게 성공하면 다음 먹이까지 4박만 대기', () => {
+    for (const name of ['tutorial', 'study_and_relax', 'late_night_radio', 'bleeping_demo']) {
+        const chart = load(name);
+        const playback = createPlayback(chart);
+        const first = chart.notes[0];
+        const start = beatToSec(chart, first.responseBeat);
+        playback.update(start, first.motion);
+        assert.equal(playback.update(start + chart.judge.holdBeats * 60 / chart.bpm + .001, first.motion).result, 'SUCCESS');
+        for (let i = 1; i < chart.notes.length; i++) {
+            assert.equal(chart.notes[i].responseBeat - chart.notes[i-1].responseBeat, 8);
+            assert.equal(chart.notes[i].callBeat, chart.notes[i].responseBeat);
+        }
+        const deadline = beatToSec(chart, first.responseBeat + chart.judge.windowBeats);
+        const missed = createPlayback(chart).update(deadline, null);
+        assert.equal(missed.result, 'FAIL');
+        assert.equal(missed.index, 0);
+        const nextStart = beatToSec(chart, chart.notes[1].responseBeat);
+        assert.ok(Math.abs((nextStart - start) - 8 * 60 / chart.bpm) < 1e-8);
+        assert.equal(playback.update(nextStart, null).flying, true);
+    }
 });

@@ -12,7 +12,7 @@
 .play-brand-dot { color: #d3ab67; margin-left: -8px; }
 .play-nav-caption { font-size: 12px; letter-spacing: 1.8px; color: #8c9681; }
 .play-step { padding: 8px 15px; border-radius: 30px; background: #eeeee2; color: #78856d; font-size: 11px; font-weight: 700; white-space: nowrap; }
-.play-content { max-width: 1240px; margin: auto; padding: 12px 32px 42px; }
+.play-content { max-width: 1440px; margin: auto; padding: 12px 24px 42px; }
 .play-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 25px; }
 .play-eyebrow { color: #97a28a; font-size: 9px; font-weight: 700; letter-spacing: 2.5px; }
 .play-heading h1 { color: var(--ink); line-height: 1.4; font-family: inherit; font-size: clamp(25px, 3vw, 34px); font-weight: 900; margin: 8px 0; letter-spacing: -1.6px; }
@@ -36,8 +36,9 @@
 .play-hold-gauge.is-miss > span { background: #c78e7d; }
 .play-path-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 20px; margin-top: 15px; font-size: 9px; color: #859277; }
 .play-path-legend span:last-child { color: #a396bb; }
-.play-scene { position: relative; max-width: 720px; margin: -5px auto -12px; }
-.play-scene svg { width: 100%; height: auto; display: block; overflow: visible; }
+.play-scene { position: relative; width: 100%; aspect-ratio: 1300 / 852; margin: 14px auto 0; overflow: hidden; border-radius: 14px; background: url('/apple-orchard.png') center / contain no-repeat; }
+.play-scene svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.play-food { filter: drop-shadow(0 3px 3px #40532980); }
 .play-success-feedback { position: absolute; top: 13%; left: 0; width: 100%; display: flex; justify-content: center; pointer-events: none; }
 .play-success-feedback > span { padding: 8px 23px; border: 2px solid #fffdf4; border-radius: 24px; background: #e9eddb; color: #657e55; font-size: clamp(18px, 3vw, 27px); font-weight: 900; box-shadow: 0 4px 0 #d8dfcc; animation: play-success-pop .25s ease-out both; }
 .play-success-feedback > span > span { margin-left: 6px; color: #bba56a; }
@@ -52,7 +53,7 @@
 .play-motion strong { font-size: 13px; font-weight: 700; color: #756b86; }
 .play-motion-flower { margin-left: auto; font-size: 26px; color: #c6b5d3; }
 .play-demo-caption { text-align: center; color: #a1a48f; font-size: 9px; margin-top: 14px; }
-.play-paused-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; color: #52694f; background: #faf8efdf; border-radius: 50%; margin: 15%; font-size: 22px; font-weight: 700; }
+.play-paused-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; color: #52694f; background: #faf8efbf; border-radius: inherit; font-size: 22px; font-weight: 700; }
 .play-sidebar { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .play-score { padding: 22px 24px; }
 .play-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: #7e8d72; font-weight: 700; }
@@ -62,7 +63,7 @@
 .play-camera { padding: 18px; }
 .play-live { color: #9ca78d; font-size: 8px; letter-spacing: 1px; }
 .play-camera-screen { position: relative; aspect-ratio: 4/3; margin: 14px 0 12px; background: #eef0e3; border: 1px solid #e0e5d3; border-radius: 17px; overflow: hidden; }
-.play-camera-screen video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.play-camera-screen video { width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
 .play-camera-placeholder { height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #9ba98b; }
 .play-camera-placeholder > span { font-size: 48px; line-height: 1.3; color: #afbd9f; }
 .play-camera-placeholder strong { font-size: 11px; margin-top: 8px; }
@@ -92,7 +93,7 @@
 .play-progress-status { color: #aaa68f; font-size: 10px; white-space: nowrap; }
 .play-floor { display: flex; justify-content: space-around; align-items: center; gap: 15px; min-height: 65px; border-radius: 50% 50% 0 0 / 18px 18px 0 0; background: #e9eddb; color: #abb991; font-size: 30px; }
 .play-floor span { font-size: 9px; letter-spacing: 2px; }
-@media (min-width: 1000px) and (max-height: 850px) { .play-nav { padding-top: 18px; padding-bottom: 18px; }.play-content { max-width: 1100px; }.play-heading { margin-bottom: 18px; }.play-scene { max-width: 510px; }.play-sidebar { gap: 14px; }.play-score { padding: 16px 22px; }.play-score > strong { margin: 4px 0; }.play-camera-screen { max-height: 165px; }.play-field { padding-top: 16px; }.play-instruction { margin-top: 14px; } }
+@media (min-width: 1000px) and (max-height: 850px) { .play-nav { padding-top: 18px; padding-bottom: 18px; }.play-content { max-width: 1440px; }.play-heading { margin-bottom: 18px; }.play-sidebar { gap: 14px; }.play-score { padding: 16px 22px; }.play-score > strong { margin: 4px 0; }.play-camera-screen { max-height: 165px; }.play-field { padding-top: 16px; }.play-instruction { margin-top: 14px; } }
 @media (max-width: 850px) { .play-layout { grid-template-columns: minmax(0, 1fr) 230px; gap: 16px; }.play-content { padding: 10px 20px 32px; }.play-field { padding: 18px 12px; }.play-nav-caption { display: none; }.play-phase-tabs button { padding: 8px; font-size: 9px; }.play-phase-tabs button span { display: none; }.play-instruction h2 { font-size: 17px; }.play-score > strong { font-size: 31px; }.play-motion { padding: 10px; }.play-motion strong { font-size: 11px; } }
 @media (max-width: 640px) { .play-nav { padding: 20px; }.play-brand { font-size: 20px; }.play-step { font-size: 9px; padding: 7px 10px; }.play-content { padding: 10px 14px 28px; }.play-heading { align-items: flex-start; }.play-eyebrow { font-size: 7px; letter-spacing: 1.5px; }.play-heading h1 { font-size: 25px; }.play-preview-tag { font-size: 8px; padding: 5px 8px; margin-top: 4px; }.play-layout { grid-template-columns: 1fr; gap: 20px; }.play-scene { margin-top: 8px; }.play-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }.play-camera { grid-column: 2; grid-row: 1 / span 3; padding: 12px; }.play-score { padding: 14px; }.play-score > strong { font-size: clamp(20px, 5vw, 31px); letter-spacing: 2px; }.play-card-heading { font-size: 10px; }.play-live { font-size: 6px; }.play-camera-placeholder > span { font-size: 30px; }.play-camera-placeholder strong { font-size: 9px; }.play-camera-placeholder p { display: none; }.play-camera-caption { font-size: 7px; }.play-friend { display: none; }.play-pause { margin-top: 0; min-height: 50px; }.play-back { grid-column: 1; }.play-progress { padding: 16px; gap: 12px; }.play-progress-status { display: none; }.play-demo-caption { font-size: 8px; }.play-floor span { letter-spacing: 1px; } }
 @media (prefers-reduced-motion: reduce) { .play-page *, .play-page *::before, .play-page *::after { transition: none !important; animation: none !important; } }
@@ -100,4 +101,64 @@
 
 
 .play-camera-toggle:disabled { cursor: default; opacity: .55; }
+
+/* 게임은 남은 화면 높이 안에서 배경과 웹캠을 함께 맞춘다. */
+body:has(.play-page) { margin: 0; }
+#root:has(.play-page) { height: 100dvh; min-height: 0; padding: 0; }
+body:has(.play-page) .gp-banner { position: fixed; inset: 0 0 auto; }
+.play-page { height: 100dvh; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.play-nav { width: 100%; padding: 10px 24px; }
+.play-content { width: 100%; height: 100%; min-height: 0; margin: 0 auto; padding: 0 24px 12px; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; }
+.play-heading { margin: 0; }
+.play-heading h1 { font-size: clamp(20px, 2.4vw, 28px); margin: 2px 0; }
+.play-heading p { margin: 2px 0 6px; }
+.play-layout { min-height: 0; gap: 16px; grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 360px); }
+.play-field { min-height: 0; padding: 12px; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 6px; }
+.play-phase-tabs { margin: 0 auto; padding: 3px; }
+.play-phase-tabs button { padding: 5px 12px; }
+.play-instruction { margin: 0; }
+.play-instruction h2 { font-size: 17px; }
+.play-instruction p { margin: 0; }
+.play-hold-gauge { margin: 0 auto; }
+.play-scene { min-height: 0; height: 100%; aspect-ratio: auto; margin: 0; }
+.play-sidebar { min-height: 0; gap: 8px; }
+.play-score { padding: 10px 16px; }
+.play-score > strong { font-size: 27px; margin: 0; }
+.play-score-foot { padding-top: 4px; }
+.play-camera { flex: 0 1 auto; min-height: 0; padding: 12px; display: flex; flex-direction: column; }
+.play-camera-screen { flex: 0 1 auto; min-height: 40px; max-height: 34dvh; aspect-ratio: 4 / 3; margin: 8px 0; }
+.play-sidebar > .play-pause { margin-top: auto; }
+.play-camera-toggle { padding: 6px; }
+.play-camera-caption { margin: 5px 0 0; }
+.play-pause { flex-shrink: 0; min-height: 40px; margin-top: 0; }
+.play-progress { margin: 0; padding: 8px 16px; gap: 12px; }
+.play-progress-note { width: 30px; height: 30px; font-size: 20px; }
+.play-progress-heading { margin-bottom: 4px; }
+.play-floor { display: none; }
+@media (max-height: 740px) {
+  .play-heading p, .play-eyebrow, .play-friend, .play-score-foot { display: none; }
+  .play-content { gap: 6px; }
+  .play-nav { padding-block: 6px; }
+}
+@media (max-width: 640px) {
+  .play-nav { padding: 8px 12px; }
+  .play-content { padding: 0 10px 8px; gap: 6px; }
+  .play-heading p, .play-eyebrow, .play-preview-tag { display: none; }
+  .play-heading h1 { font-size: 20px; }
+  .play-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 154px; gap: 8px; }
+  .play-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; gap: 4px 8px; }
+  .play-camera { grid-column: 2; grid-row: 1 / -1; padding: 8px; }
+  .play-camera-screen { margin: 4px 0; min-height: 0; flex: 1; }
+  .play-camera-caption, .play-score-foot { display: none; }
+  .play-score { padding: 4px 10px; }
+  .play-score > strong { font-size: 22px; }
+  .play-pause { min-height: 32px; }
+  .play-progress { padding: 6px 10px; }
+}
+@media (max-height: 500px) {
+  .play-heading, .play-score, .play-camera-caption, .play-friend { display: none; }
+  .play-content { grid-template-rows: minmax(0, 1fr) auto; }
+  .play-layout { grid-template-columns: minmax(0, 1fr) 190px; grid-template-rows: minmax(0, 1fr); }
+  .play-sidebar { display: flex; }
+}
 

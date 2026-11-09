@@ -157,7 +157,6 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
       <span className="play-step">02 / 함께 리듬 타기</span>
     </nav>
     <div className="play-content">
-      <header className="play-heading"><div><span className="play-eyebrow">A LITTLE MOVE, A HAPPY RHYTHM</span><h1>우리의 리듬 정원<span aria-hidden="true">✿</span></h1><p>{character.name}와 함께, 가볍게 움직여볼까요?</p></div><span className="play-preview-tag">리듬 스트레칭</span></header>
       <div className="play-layout">
         <section className={`play-field play-card ${paused ? 'is-paused' : ''}`} aria-label="게임 플레이 공간">
           <div className="play-phase-tabs" aria-label="현재 진행 단계">{phases.map((item, index) => <button key={item.id} aria-pressed={phase === index} disabled><span>0{index + 1}</span> {item.id}</button>)}</div>
@@ -169,15 +168,23 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
           </div>
           <div className="play-scene">
             <svg viewBox="0 0 720 560" role="img" aria-label={note.success ? 'SUCCESS, 사과를 획득했어요' : note.miss ? 'MISS, 먹이에 맞는 자세를 취하지 못했어요' : `${character.name}의 현재 자세: ${characterPoses[motion].label}.${frame?.flying ? ` 사과 한 개가 ${lane?.label} 방향에서 와요` : ''}`}>
-              <defs><image id="preview-apple" href="/notes/apple.png" x="-17" y="-17" width="34" height="34" preserveAspectRatio="xMidYMid meet" /></defs>
+              <defs>
+                <filter id="food-outline" x="-40%" y="-40%" width="180%" height="180%" colorInterpolationFilters="sRGB">
+                  <feMorphology in="SourceAlpha" operator="dilate" radius="2.5" result="outline" />
+                  <feFlood floodColor="#fffdf2" />
+                  <feComposite in2="outline" operator="in" result="border" />
+                  <feMerge><feMergeNode in="border" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <image id="preview-apple" href="/notes/apple.png" x="-17" y="-17" width="34" height="34" preserveAspectRatio="xMidYMid meet" />
+              </defs>
               <image href={poseImage} x="260" y="173" width="200" height="210" preserveAspectRatio="xMidYMid meet"/>
-              {frame?.flying && <use href="#preview-apple" transform={`translate(${foodX} ${foodY})`} />}
+              {frame?.flying && <g className="play-food" transform={`translate(${foodX} ${foodY})`}>
+                <use href="#preview-apple" filter="url(#food-outline)" />
+              </g>}
             </svg>
             <div className="play-success-feedback" role="status" aria-live="polite">{note.success && <span key={note.serial}>SUCCESS <span aria-hidden="true">✦</span></span>}{note.miss && <span key={note.serial} className="play-miss">MISS</span>}</div>
             {paused && <div className="play-paused-badge"><span aria-hidden="true">Ⅱ</span> 일시정지</div>}
           </div>
-          <div className="play-motion"><span className="play-motion-icon" aria-hidden="true">{motion === 'CENTER' ? '◎' : motion.endsWith('TILT') ? '⌒' : '↔'}</span><div><span>내 동작 · {paused ? '일시정지' : faceDetected && calibration ? '실시간' : '인식 대기'}</span><strong>{characterPoses[motion].label}</strong></div><span className="play-motion-flower" aria-hidden="true">✿</span></div>
-          <p className="play-demo-caption">먹이는 음악 박자에 맞춰 와요 · 안내된 자세를 유지해 주세요</p>
         </section>
         <aside className="play-sidebar" aria-label="게임 정보">
           <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>000000</strong><div className="play-score-foot"><span>SCORE</span><span>집계 대기</span></div></section>

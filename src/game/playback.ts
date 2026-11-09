@@ -15,7 +15,7 @@ export function createPlayback(chart: ChartData) {
             const source = chart.notes[index];
             const note = notes[index];
             const nextCall = chart.notes[index + 1];
-            const cycleEnd = source ? beatToSec(chart, source.callBeat + chart.beatsPerBar * 3) : 0;
+            const cycleEnd = source ? beatToSec(chart, source.responseBeat + chart.judge.windowBeats + 2) : 0;
             const active = !!note && time < (nextCall ? beatToSec(chart, nextCall.callBeat) : cycleEnd);
             const result = note ? judge.getResults().find(result => result.noteId === note.id)?.result : undefined;
             const phase = !active || time < note.responseStart ? 0
