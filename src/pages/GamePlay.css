@@ -30,6 +30,10 @@
 .play-instruction { text-align: center; margin-top: 20px; }
 .play-instruction h2 { font: 700 20px/1.5 'Malgun Gothic', sans-serif; color: #52694f; margin: 0 0 4px; letter-spacing: -.7px; }
 .play-instruction p { color: #939984; font-size: 11px; }
+.play-hold-gauge { width: min(260px, 80%); height: 14px; margin: 14px auto 0; overflow: hidden; border-radius: 999px; background: #e9e9db; border: 1px solid #d8ddcb; }
+.play-hold-gauge > span { display: block; width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a9bd8b, #78975f); transform-origin: left; }
+.play-hold-gauge.is-complete > span { background: #6f9258; }
+.play-hold-gauge.is-miss > span { background: #c78e7d; }
 .play-path-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 20px; margin-top: 15px; font-size: 9px; color: #859277; }
 .play-path-legend span:last-child { color: #a396bb; }
 .play-scene { position: relative; max-width: 720px; margin: -5px auto -12px; }

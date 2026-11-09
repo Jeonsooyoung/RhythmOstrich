@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { characters } from '../data/characters';
 import { useSelectedCharacter } from '../state/characterSelection';
@@ -8,18 +8,20 @@ import { extractHeadAngles } from '../mediapipe/motionExtractor';
 import type { CalibrationSnapshot } from '../types/session';
 import type { CharacterId } from '../types/character';
 import type { ChartData } from '../game/chart';
+import { createPlayback } from '../game/playback';
+import type { MotionType } from '../motion/motionDetector';
 import { calibrateAngles } from '../motion/calibrate';
 import { detectMotion } from '../motion/motionDetector';
 import { characterPoses, getCharacterPoseImage } from '../data/characterPoses';
 import './GamePlay.css';
 
 const phases = [
-  { id: 'CALL', title: '먼저 리듬을 살펴봐요', hint: '사과 노트가 오는 방향을 살펴보세요.' },
+  { id: 'CALL', title: '리듬에 맞춰 준비해요', hint: '먹이가 나타날 때까지 편하게 기다려 주세요.' },
   { id: 'RESPONSE', title: '이제 함께 움직여요', hint: '캐릭터를 향해 오는 먹이에 맞춰 움직여보세요.' },
   { id: 'RESET', title: '정면을 보고 쉬어가요', hint: '어깨를 편하게 하고 다음 리듬을 준비해요.' },
 ] as const;
 
-// Layout preview paths only. These are independent of charts and audio time.
+// 먹이의 이동 경로. 진행률은 음악 재생 시간에서 계산한다.
 const lanes = [
   { motion: 'LEFT_TURN', label: '왼쪽 돌리기', path: 'M 62,280 L 285,280' },
   { motion: 'RIGHT_TURN', label: '오른쪽 돌리기', path: 'M 658,280 L 435,280' },
@@ -72,7 +74,6 @@ interface GamePlayProps {
 export default function GamePlay({ chart, camera, calibration: snapshot, characterId, onAbort, onCharacterSelect }: GamePlayProps) {
   const selected = useSelectedCharacter();
   const character = characters.find(item => item.id === (characterId ?? selected)) ?? characters[0];
-  const [phase, setPhase] = useState(0);
   const [paused, setPaused] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
       if (error instanceof DOMException && error.name === 'AbortError') return;
       if (audio.current === player) setAudioError('음악을 재생하지 못했어요. 음악 재생 버튼을 눌러 주세요.');
     });
-  }, []);
+  }, [setAudioError]);
   useEffect(() => {
     const player = audio.current;
     if (!player || !chart) return;
@@ -95,9 +96,15 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
   }, [chart, paused, playMusic]);
   const progress = duration > 0 ? Math.min(100, currentTime / duration * 100) : 0;
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-  const [note, setNote] = useState(() => ({ index: Math.floor(Math.random() * lanes.length), serial: 0, success: false, miss: false }));
-  const lane = lanes[note.index];
-  const noteAnimation = useRef<SVGAnimateMotionElement>(null);
+  const playback = useMemo(() => chart ? createPlayback(chart) : null, [chart]);
+  const [frame, setFrame] = useState<ReturnType<ReturnType<typeof createPlayback>['update']> | null>(null);
+  const phase = frame?.phase ?? 0;
+  const lane = lanes.find(lane => lane.motion === frame?.motion);
+  const note = { success: frame?.result === 'SUCCESS', miss: frame?.result === 'FAIL', serial: frame?.index ?? -1 };
+  const pathPoints = lane?.path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [360, 280, 360, 280];
+  const t = frame?.progress ?? 0;
+  const foodX = pathPoints.length === 6 ? (1-t)**2 * pathPoints[0] + 2*(1-t)*t * pathPoints[2] + t*t * pathPoints[4] : pathPoints[0] + t * (pathPoints[2] - pathPoints[0]);
+  const foodY = pathPoints.length === 6 ? (1-t)**2 * pathPoints[1] + 2*(1-t)*t * pathPoints[3] + t*t * pathPoints[5] : pathPoints[1] + t * (pathPoints[3] - pathPoints[1]);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const faceResult = useFaceLandmarker(camera.stream ? videoElement : null, setTrackingError);
@@ -113,36 +120,24 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
     : !faceDetected ? '얼굴이 화면에 보이도록 앉아주세요'
     : !calibration ? '정면 맞추기 화면에서 기준을 설정해 주세요'
     : '저장한 정면 기준 적용 중 · 고개 움직임을 따라해요';
-  const matched = !paused && faceDetected && !!calibration && !trackingError && motion === lane.motion;
+  const detectedMotion = useRef<MotionType | null>(null);
   useEffect(() => {
-    if (!matched || note.success || note.miss) return;
-    // Commit at the next frame; cleanup cancels stale matches after a note change.
-    const frame = requestAnimationFrame(() => {
-      setNote(current => current.serial === note.serial && !current.success && !current.miss
-        ? { ...current, success: true } : current);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [matched, note.serial, note.success, note.miss]);
+    detectedMotion.current = faceDetected && calibration && !trackingError ? motion : null;
+  }, [faceDetected, calibration, trackingError, motion]);
   useEffect(() => {
-    if ((!note.success && !note.miss) || paused) return;
-    const timer = window.setTimeout(() => {
-      const index = Math.floor(Math.random() * lanes.length);
-      setNote(current => current.serial === note.serial && (current.success || current.miss)
-        ? { index, serial: current.serial + 1, success: false, miss: false } : current);
-    }, 700);
-    return () => window.clearTimeout(timer);
-  }, [note.success, note.miss, note.serial, paused]);
-  useEffect(() => {
-    const animation = noteAnimation.current;
-    if (!animation) return;
-    const next = () => {
-      setNote(current => current.serial === note.serial && !current.success && !current.miss
-        ? { ...current, miss: true } : current);
+    if (!playback) return;
+    let request = 0;
+    const tick = () => {
+      const player = audio.current;
+      if (player && !paused && !player.paused && !player.seeking && player.readyState >= 2) {
+        setFrame(playback.update(player.currentTime, detectedMotion.current));
+        setCurrentTime(player.currentTime);
+      }
+      request = requestAnimationFrame(tick);
     };
-    animation.addEventListener('endEvent', next);
-    animation.beginElement();
-    return () => animation.removeEventListener('endEvent', next);
-  }, [note.serial, note.success, note.miss]);
+    request = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(request);
+  }, [playback, paused]);
   useEffect(() => {
     // Cache all poses before the user turns, avoiding image fetches on each motion.
     Object.keys(characterPoses).forEach(key => {
@@ -150,18 +145,6 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
       image.src = getCharacterPoseImage(character.image, key as keyof typeof characterPoses);
     });
   }, [character.image]);
-  const scene = useRef<SVGSVGElement>(null);
-  useEffect(() => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sync = () => {
-      if (paused || reduced.matches) scene.current?.pauseAnimations();
-      else scene.current?.unpauseAnimations();
-    };
-    sync();
-    reduced.addEventListener('change', sync);
-    return () => reduced.removeEventListener('change', sync);
-  }, [paused]);
-
   return <main className="play-page" style={{ '--friend-color': character.color } as CSSProperties}>
     {chart && <audio key={chart.id} ref={audio} src={chart.audio} preload="auto"
       onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
@@ -174,22 +157,27 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
       <span className="play-step">02 / 함께 리듬 타기</span>
     </nav>
     <div className="play-content">
-      <header className="play-heading"><div><span className="play-eyebrow">A LITTLE MOVE, A HAPPY RHYTHM</span><h1>우리의 리듬 정원<span aria-hidden="true">✿</span></h1><p>{character.name}와 함께, 가볍게 움직여볼까요?</p></div><span className="play-preview-tag">화면 미리보기</span></header>
+      <header className="play-heading"><div><span className="play-eyebrow">A LITTLE MOVE, A HAPPY RHYTHM</span><h1>우리의 리듬 정원<span aria-hidden="true">✿</span></h1><p>{character.name}와 함께, 가볍게 움직여볼까요?</p></div><span className="play-preview-tag">리듬 스트레칭</span></header>
       <div className="play-layout">
         <section className={`play-field play-card ${paused ? 'is-paused' : ''}`} aria-label="게임 플레이 공간">
-          <div className="play-phase-tabs" aria-label="진행 단계 미리보기">{phases.map((item, index) => <button key={item.id} aria-pressed={phase === index} onClick={() => setPhase(index)} disabled={paused}><span>0{index + 1}</span> {item.id}</button>)}</div>
-          <div className="play-instruction" role="status"><h2>{paused ? '잠시 쉬어가요' : phases[phase].title}</h2><p>{paused ? '준비되면 이어하기를 눌러주세요.' : phases[phase].hint}</p></div>
+          <div className="play-phase-tabs" aria-label="현재 진행 단계">{phases.map((item, index) => <button key={item.id} aria-pressed={phase === index} disabled><span>0{index + 1}</span> {item.id}</button>)}</div>
+          <div className="play-instruction" role="status"><h2>{paused ? '잠시 쉬어가요' : phases[phase].title}</h2><p>{paused ? '준비되면 이어하기를 눌러주세요.' : frame?.active && phase !== 0 ? `${lane?.label ?? '목표 자세'} · 자세를 유지해 주세요` : '음악에 맞춰 준비해 주세요'}</p></div>
+          <div className={`play-hold-gauge${note.success ? ' is-complete' : ''}${note.miss ? ' is-miss' : ''}`}
+            role="progressbar" aria-label="자세 유지" aria-valuemin={0} aria-valuemax={100}
+            aria-valuenow={Math.round((frame?.active && phase !== 0 ? frame.holdProgress : 0) * 100)}>
+            <span style={{ transform: `scaleX(${frame?.active && phase !== 0 ? frame.holdProgress : 0})` }} />
+          </div>
           <div className="play-scene">
-            <svg ref={scene} viewBox="0 0 720 560" role="img" aria-label={note.success ? 'SUCCESS, 사과를 획득했어요' : note.miss ? 'MISS, 먹이에 맞는 자세를 취하지 못했어요' : `${character.name}의 현재 자세: ${characterPoses[motion].label}. 사과 한 개가 ${lane.label} 경로로 이동 중`}>
+            <svg viewBox="0 0 720 560" role="img" aria-label={note.success ? 'SUCCESS, 사과를 획득했어요' : note.miss ? 'MISS, 먹이에 맞는 자세를 취하지 못했어요' : `${character.name}의 현재 자세: ${characterPoses[motion].label}.${frame?.flying ? ` 사과 한 개가 ${lane?.label} 방향에서 와요` : ''}`}>
               <defs><image id="preview-apple" href="/notes/apple.png" x="-17" y="-17" width="34" height="34" preserveAspectRatio="xMidYMid meet" /></defs>
               <image href={poseImage} x="260" y="173" width="200" height="210" preserveAspectRatio="xMidYMid meet"/>
-              {!note.success && !note.miss && <g key={note.serial}><use href="#preview-apple"/><animateMotion ref={noteAnimation} dur="2s" begin="indefinite" repeatCount="1" fill="freeze" path={lane.path} rotate="0"/></g>}
+              {frame?.flying && <use href="#preview-apple" transform={`translate(${foodX} ${foodY})`} />}
             </svg>
             <div className="play-success-feedback" role="status" aria-live="polite">{note.success && <span key={note.serial}>SUCCESS <span aria-hidden="true">✦</span></span>}{note.miss && <span key={note.serial} className="play-miss">MISS</span>}</div>
             {paused && <div className="play-paused-badge"><span aria-hidden="true">Ⅱ</span> 일시정지</div>}
           </div>
           <div className="play-motion"><span className="play-motion-icon" aria-hidden="true">{motion === 'CENTER' ? '◎' : motion.endsWith('TILT') ? '⌒' : '↔'}</span><div><span>내 동작 · {paused ? '일시정지' : faceDetected && calibration ? '실시간' : '인식 대기'}</span><strong>{characterPoses[motion].label}</strong></div><span className="play-motion-flower" aria-hidden="true">✿</span></div>
-          <p className="play-demo-caption">사과는 한 번에 하나씩 무작위 방향에서 와요 · 캐릭터는 내 고개 움직임을 따라해요</p>
+          <p className="play-demo-caption">먹이는 음악 박자에 맞춰 와요 · 안내된 자세를 유지해 주세요</p>
         </section>
         <aside className="play-sidebar" aria-label="게임 정보">
           <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>000000</strong><div className="play-score-foot"><span>SCORE</span><span>집계 대기</span></div></section>
