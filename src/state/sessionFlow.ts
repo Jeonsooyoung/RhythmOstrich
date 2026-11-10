@@ -2,7 +2,7 @@
 // React와 무관한 순수 함수로 두어 테스트할 수 있게 함
 //
 // 진행 순서
-//   userId → preAssessment → character → calibration → song → game → postAssessment → result
+//   userId → preAssessment → character → song → calibration → game → postAssessment → result
 //
 // phase는 따로 저장하지 않고 draft에 "아직 비어 있는 첫 값"으로 정해짐
 // 그래서 값을 채우면 다음 화면으로, 값을 비우면 그 화면으로 돌아감
@@ -28,8 +28,8 @@ export const PHASE_ORDER: readonly Phase[] = [
     'userId',
     'preAssessment',
     'character',
-    'calibration',
     'song',
+    'calibration',
     'game',
     'postAssessment',
     'result',
@@ -54,6 +54,7 @@ export interface SessionDraft {
 }
 
 export type SessionAction =
+    | { type: 'RETURN_TO_CHARACTER' }
     | { type: 'SET_USER'; userId: string }
     | { type: 'SUBMIT_PRE'; assessment: SelfAssessment }
     | { type: 'CALIBRATED'; calibration: CalibrationSnapshot }
@@ -97,8 +98,8 @@ export function getPhase(draft: SessionDraft): Phase {
     if (!draft.userId) return 'userId';
     if (!draft.pre) return 'preAssessment';
     if (!draft.characterId) return 'character';
-    if (!draft.calibration) return 'calibration';
     if (!draft.chartId) return 'song';
+    if (!draft.calibration) return 'calibration';
     if (!draft.game) return 'game';
     if (!draft.record) return 'postAssessment';
     return 'result';
@@ -115,6 +116,8 @@ const clearPlay = (draft: SessionDraft): SessionDraft => ({
 
 export function sessionReducer(draft: SessionDraft, action: SessionAction): SessionDraft {
     switch (action.type) {
+        case 'RETURN_TO_CHARACTER':
+            return { ...clearPlay(draft), characterId: null, calibration: null };
         case 'SET_USER':
             return { ...draft, userId: action.userId.trim() || null };
 
@@ -125,10 +128,10 @@ export function sessionReducer(draft: SessionDraft, action: SessionAction): Sess
             return { ...draft, calibration: action.calibration };
 
         case 'SELECT_CHARACTER':
-            return { ...draft, characterId: action.characterId };
+            return { ...clearPlay(draft), characterId: action.characterId, calibration: null };
 
         case 'SELECT_SONG':
-            return { ...clearPlay(draft), chartId: action.chartId, startedAt: action.now };
+            return { ...clearPlay(draft), calibration: null, chartId: action.chartId, startedAt: action.now };
 
         case 'FINISH_GAME':
             if (getPhase(draft) !== 'game') return draft;
@@ -173,9 +176,9 @@ function goBack(draft: SessionDraft): SessionDraft {
             // 사전 평가를 다시 고칠 수 있도록 값은 미리 채워 둠
             return { ...draft, pre: null, previousPre: draft.pre ?? draft.previousPre, preReused: false };
         case 'calibration':
-            return { ...draft, characterId: null };
+            return { ...clearPlay(draft), calibration: null };
         case 'song':
-            return { ...draft, calibration: null };
+            return { ...draft, characterId: null, calibration: null };
         case 'game':
             return clearPlay(draft);
         default:
@@ -219,7 +222,7 @@ export function restoreDraft(raw: unknown): SessionDraft | null {
     const full: SessionDraft = { ...createDraft(draft.sessionId), ...draft } as SessionDraft;
 
     if (getPhase(full) === 'game') {
-        return { ...clearPlay(full), calibration: null };
+        return { ...full, game: null, record: null, calibration: null };
     }
     return full;
 }

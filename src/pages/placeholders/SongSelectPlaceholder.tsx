@@ -5,7 +5,7 @@ import type { ChartData } from '../../game/chart';
 interface SongSelectPageProps {
     charts: ChartData[];
     onSelect: (chartId: string) => void;
-    /** 이전 화면(정면 기준 잡기)으로 */
+    /** 이전 화면(캐릭터 선택)으로 */
     onBack: () => void;
 }
 
@@ -29,15 +29,15 @@ export default function SongSelectPlaceholder({ charts, onSelect, onBack }: Song
                                 {isTutorial ? '튜토리얼' : chart.title}
                                 {isTutorial && <span className="gp-badge">처음이라면 추천</span>}
                             </strong>
-                            <small>{chart.artist} · {chart.bpm} BPM · 동작 {chart.notes.length}개 · 약 {minutes}분</small>
+                            <small>{isTutorial ? `음악 없이 · ${chart.notes.length}방향 안내 · 성공할 때까지 연습` : `${chart.artist} · ${chart.bpm} BPM · 동작 ${chart.notes.length}개 · 약 ${minutes}분`}</small>
                         </span>
                         <button type="button" className="gp-button" onClick={() => onSelect(chart.id)}>
-                            시작 <span aria-hidden="true">→</span>
+                            {isTutorial ? '연습하기' : '시작'} <span aria-hidden="true">→</span>
                         </button>
                     </section>
                 );
             })}
-            <button type="button" className="gp-link" onClick={onBack}>← 정면 기준 다시 잡기</button>
+            <button type="button" className="gp-link" onClick={onBack}>← 캐릭터 다시 고르기</button>
         </GardenLayout>
     );
 }

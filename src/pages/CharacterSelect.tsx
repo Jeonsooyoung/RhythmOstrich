@@ -71,7 +71,7 @@ export default function CharacterSelect({ onConfirm, onBack, stepNumber = '01' }
       }
     }}>
       <nav className="garden-nav" aria-label="화면 메뉴">
-        <a className="garden-brand" href="#character-select"><span aria-hidden="true">♬</span> 리듬타조<span className="brand-dot">.</span></a>
+        <a className="garden-brand" href="#character-select" aria-label="캐릭터 선택 화면으로 이동"><img src="/logo.png" alt="" /> 리듬타조<span className="brand-dot">.</span></a>
         <span className="garden-label">작은 움직임, 즐거운 리듬</span>
         <span className="step-tag">{stepNumber} <span>/</span> 친구 만나기</span>
       </nav>

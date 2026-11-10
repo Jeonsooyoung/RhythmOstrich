@@ -6,7 +6,7 @@
 export { default as AssessmentPage } from './placeholders/AssessmentPlaceholder';
 
 // 1·2번 파트: 게임 (GamePageProps)
-export { default as GamePage } from './placeholders/GamePlaceholder';
+export { default as GamePage } from './GamePlay';
 
 // 3번 파트: 결과 (ResultPageProps)
 export { default as ResultPage } from './placeholders/ResultPlaceholder';

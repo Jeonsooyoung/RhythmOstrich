@@ -1,0 +1,276 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { characters } from '../data/characters';
+import { useSelectedCharacter } from '../state/characterSelection';
+import { useWebcam } from '../hooks/useWebcam';
+import { useFaceLandmarker } from '../hooks/useFaceLandmarker';
+import { extractHeadAngles } from '../mediapipe/motionExtractor';
+import type { CalibrationSnapshot, GameResult } from '../types/session';
+import type { CharacterId } from '../types/character';
+import type { ChartData } from '../game/chart';
+import { buildPlaybackResult, createPlayback } from '../game/playback';
+import { beatToSec } from '../game/chart';
+import { createTutorial, TUTORIAL_GUIDES } from '../game/tutorial';
+import type { MotionType } from '../motion/motionDetector';
+import { calibrateAngles } from '../motion/calibrate';
+import { detectMotion } from '../motion/motionDetector';
+import { characterPoses, getCharacterPoseImage } from '../data/characterPoses';
+import './GamePlay.css';
+
+const phases = [
+  { id: 'CALL', title: '리듬에 맞춰 준비해요', hint: '먹이가 나타날 때까지 편하게 기다려 주세요.' },
+  { id: 'RESPONSE', title: '이제 함께 움직여요', hint: '캐릭터를 향해 오는 먹이에 맞춰 움직여보세요.' },
+  { id: 'RESET', title: '정면을 보고 쉬어가요', hint: '어깨를 편하게 하고 다음 리듬을 준비해요.' },
+] as const;
+
+// 먹이의 이동 경로. 진행률은 음악 재생 시간에서 계산한다.
+const lanes = [
+  { motion: 'LEFT_TURN', label: '왼쪽 돌리기', path: 'M 62,280 L 285,280' },
+  { motion: 'RIGHT_TURN', label: '오른쪽 돌리기', path: 'M 658,280 L 435,280' },
+  { motion: 'LEFT_TILT', label: '왼쪽 기울이기', path: 'M 70,170 Q 165,150 285,230' },
+  { motion: 'RIGHT_TILT', label: '오른쪽 기울이기', path: 'M 650,170 Q 555,150 435,230' },
+  { motion: 'EXTENSION', label: '고개 들기', path: 'M 360,35 L 360,193' },
+  { motion: 'FLEXION', label: '고개 숙이기', path: 'M 360,525 L 360,368' },
+] as const;
+
+interface CameraPreviewProps {
+  camera: ReturnType<typeof useWebcam>;
+  onVideo: (video: HTMLVideoElement | null) => void;
+  trackingStatus: string;
+  trackingError: string | null;
+}
+
+function CameraPreview({ camera, onVideo, trackingStatus, trackingError }: CameraPreviewProps) {
+  const { stream, error, isLoading, startCamera, stopCamera } = camera;
+  const video = useRef<HTMLVideoElement>(null);
+  const attachVideo = useCallback((element: HTMLVideoElement | null) => {
+    video.current = element;
+    onVideo(element);
+  }, [onVideo]);
+  useEffect(() => {
+    if (video.current) video.current.srcObject = stream;
+  }, [stream]);
+  return <section className="play-camera play-card" aria-label="웹캠 영상">
+    <div className="play-card-heading"><span>나의 움직임</span><span className="play-live">{stream ? '● LIVE' : '○ CAMERA'}</span></div>
+    <div className="play-camera-screen">
+      <video key={stream?.id ?? 'idle'} ref={attachVideo} autoPlay playsInline muted hidden={!stream} />
+      {!stream && <div className="play-camera-placeholder"><span aria-hidden="true">◎</span><strong>여기에 내가 보여요</strong><p>편안하게, 얼굴과 어깨가 보이도록</p></div>}
+      <span className="play-camera-corner" aria-hidden="true" />
+    </div>
+    {error && <p className="play-camera-error" role="status">{error}</p>}
+    <button className="play-camera-toggle" onClick={stream ? stopCamera : startCamera} disabled={isLoading}>{isLoading ? '카메라 연결 중…' : stream ? '카메라 끄기' : '카메라 켜기'}</button>
+    <p className="play-camera-caption" role="status">{trackingStatus}</p>
+    {stream && trackingError && <p className="play-camera-error" role="alert">{trackingError}</p>}
+  </section>;
+}
+
+interface GamePlayProps {
+  chart: ChartData | null;
+  onCharacterSelect: () => void;
+  camera: ReturnType<typeof useWebcam>;
+  calibration?: CalibrationSnapshot | null;
+  characterId?: CharacterId;
+  onAbort?: () => void;
+  onFinish?: (result: GameResult) => void;
+}
+
+export default function GamePlay({ chart, camera, calibration: snapshot, characterId, onAbort, onCharacterSelect, onFinish }: GamePlayProps) {
+  const isTutorial = chart?.id === 'tutorial';
+  const [tutorialStarted, setTutorialStarted] = useState(false);
+  const tutorialClock = useRef(0);
+  const selected = useSelectedCharacter();
+  const character = characters.find(item => item.id === (characterId ?? selected)) ?? characters[0];
+  const [paused, setPaused] = useState(false);
+  const [completion, setCompletion] = useState<GameResult | null>(null);
+  const audio = useRef<HTMLAudioElement>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const playMusic = useCallback(() => {
+    const player = audio.current;
+    if (!player) return;
+    void player.play().then(() => setAudioError(null)).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (audio.current === player) setAudioError('음악을 재생하지 못했어요. 음악 재생 버튼을 눌러 주세요.');
+    });
+  }, [setAudioError]);
+  useEffect(() => {
+    const player = audio.current;
+    if (!player || !chart) return;
+    if (paused) player.pause();
+    else playMusic();
+    return () => player.pause();
+  }, [chart, paused, playMusic]);
+  const lastNote = chart?.notes.at(-1);
+  const gameDuration = chart && lastNote ? beatToSec(chart, lastNote.responseBeat + chart.judge.windowBeats) : duration;
+  const progress = completion ? 100 : gameDuration > 0 ? Math.min(100, currentTime / gameDuration * 100) : 0;
+  const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+  const playback = useMemo(() => chart ? isTutorial ? createTutorial(chart) : createPlayback(chart) : null, [chart, isTutorial]);
+  const [frame, setFrame] = useState<ReturnType<ReturnType<typeof createPlayback>['update']> | null>(null);
+  const phase = frame?.phase ?? 0;
+  const lane = lanes.find(lane => lane.motion === frame?.motion);
+  const note = { success: frame?.result === 'SUCCESS', miss: frame?.result === 'FAIL', serial: frame?.index ?? -1 };
+  const pathPoints = lane?.path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [360, 280, 360, 280];
+  const t = frame?.progress ?? 0;
+  const foodX = pathPoints.length === 6 ? (1-t)**2 * pathPoints[0] + 2*(1-t)*t * pathPoints[2] + t*t * pathPoints[4] : pathPoints[0] + t * (pathPoints[2] - pathPoints[0]);
+  const foodY = pathPoints.length === 6 ? (1-t)**2 * pathPoints[1] + 2*(1-t)*t * pathPoints[3] + t*t * pathPoints[5] : pathPoints[1] + t * (pathPoints[3] - pathPoints[1]);
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
+  const faceResult = useFaceLandmarker(camera.stream ? videoElement : null, setTrackingError);
+  const calibration = snapshot?.head;
+  const matrix = faceResult?.facialTransformationMatrixes?.[0];
+  const faceDetected = !!camera.stream && (faceResult?.faceLandmarks.length ?? 0) > 0 && !!matrix;
+  const angles = faceDetected && matrix ? extractHeadAngles(matrix.data) : null;
+  const motion = !paused && angles && calibration
+    ? detectMotion(calibrateAngles(angles, calibration)) : 'CENTER';
+  const poseImage = getCharacterPoseImage(character.image, motion);
+  const trackingStatus = !camera.stream ? '카메라를 켜면 자세를 따라해요'
+    : paused ? '일시정지 중이에요'
+    : !faceDetected ? '얼굴이 화면에 보이도록 앉아주세요'
+    : !calibration ? '정면 맞추기 화면에서 기준을 설정해 주세요'
+    : '저장한 정면 기준 적용 중 · 고개 움직임을 따라해요';
+  const detectedMotion = useRef<MotionType | null>(null);
+  useEffect(() => {
+    detectedMotion.current = faceDetected && calibration && !trackingError ? motion : null;
+  }, [faceDetected, calibration, trackingError, motion]);
+  useEffect(() => {
+    if (!playback || completion) return;
+    let request = 0;
+    let previous = performance.now();
+    const tick = () => {
+      const player = audio.current;
+      const now = performance.now();
+      const delta = Math.min((now - previous) / 1000, .1);
+      previous = now;
+      const tutorialRunning = isTutorial && tutorialStarted && !paused && !document.hidden;
+      if (tutorialRunning) tutorialClock.current += delta;
+      if (tutorialRunning || (player && !paused && !player.paused && !player.seeking && player.readyState >= 2)) {
+        const time = isTutorial ? tutorialClock.current : player!.currentTime;
+        const next = playback.update(time, detectedMotion.current);
+        setFrame(next);
+        setCurrentTime(time);
+        if (chart && chart.notes.length > 0 && next.results.length === chart.notes.length) {
+          setCompletion(buildPlaybackResult(chart, next.results, time));
+          return;
+        }
+      }
+      request = requestAnimationFrame(tick);
+    };
+    request = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(request);
+  }, [playback, paused, completion, chart, isTutorial, tutorialStarted]);
+  useEffect(() => {
+    if (!import.meta.env.DEV || !chart || !playback || completion) return;
+    const finishEarly = (event: KeyboardEvent) => {
+      if (event.repeat || !event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey || event.code !== 'KeyE') return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return;
+      event.preventDefault();
+      if (isTutorial) { onAbort?.(); return; }
+      const time = audio.current?.currentTime ?? 0;
+      const result = buildPlaybackResult(chart, playback.update(time, detectedMotion.current).results, time);
+      audio.current?.pause();
+      if (onFinish) onFinish(result);
+      else setCompletion(result);
+    };
+    window.addEventListener('keydown', finishEarly);
+    return () => window.removeEventListener('keydown', finishEarly);
+  }, [chart, playback, completion, onFinish, isTutorial, onAbort]);
+  useEffect(() => {
+    if (!completion) return;
+    const player = audio.current;
+    const originalVolume = player?.volume ?? 1;
+    const startedAt = performance.now();
+    let request = 0;
+    const finish = () => {
+      const elapsed = performance.now() - startedAt;
+      if (player) player.volume = originalVolume * Math.max(0, 1 - elapsed / 1500);
+      if (elapsed >= 1500) player?.pause();
+      if (elapsed >= 2200) {
+        if (isTutorial) onAbort?.();
+        else onFinish?.(completion);
+        return;
+      }
+      request = requestAnimationFrame(finish);
+    };
+    request = requestAnimationFrame(finish);
+    return () => {
+      cancelAnimationFrame(request);
+      if (player) { player.pause(); player.volume = originalVolume; }
+    };
+  }, [completion, onFinish, isTutorial, onAbort]);
+  useEffect(() => {
+    // Cache all poses before the user turns, avoiding image fetches on each motion.
+    Object.keys(characterPoses).forEach(key => {
+      const image = new Image();
+      image.src = getCharacterPoseImage(character.image, key as keyof typeof characterPoses);
+    });
+  }, [character.image]);
+  return <main className="play-page" style={{ '--friend-color': character.color } as CSSProperties}>
+    {chart && !isTutorial && <audio key={chart.id} ref={audio} src={chart.audio} preload="auto"
+      onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
+      onLoadedMetadata={event => { setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0); setCurrentTime(0); }}
+      onEnded={() => setPaused(true)}
+      onError={() => setAudioError('음악 파일을 불러오지 못했어요. 다시 시도해 주세요.')} />}
+    <nav className="play-nav" aria-label="화면 메뉴">
+      <button type="button" className="play-brand" onClick={onCharacterSelect} aria-label="캐릭터 선택 화면으로 이동"><img src="/logo.png" alt="" /> 리듬타조<span className="play-brand-dot">.</span></button>
+      <span className="play-nav-caption">작은 움직임, 즐거운 리듬</span>
+      <span className="play-step">{isTutorial ? "튜토리얼 · 음악 없이 연습" : "02 / 함께 리듬 타기"}</span>
+    </nav>
+    <div className="play-content">
+      <div className="play-layout">
+        <section className={`play-field play-card ${paused ? 'is-paused' : ''}`} aria-label="게임 플레이 공간">
+          {isTutorial ? <div className="play-tutorial-guide" role="status">
+            <strong>연습 {Math.min((frame?.index ?? 0) + 1, chart?.notes.length ?? 6)} / {chart?.notes.length ?? 6} · {characterPoses[frame?.motion ?? chart?.notes[0]?.motion ?? 'CENTER'].label}</strong>
+            <p>{TUTORIAL_GUIDES[frame?.motion ?? chart?.notes[0]?.motion ?? 'CENTER']}</p>
+            <small>{note.miss ? '괜찮아요! 같은 방향으로 다시 연습해요.' : note.success ? '잘했어요! 다음 방향을 연습해요.' : '맞는 자세를 2초 유지해 게이지를 채워 주세요.'}</small>
+          </div> : <>
+          <div className="play-phase-tabs" aria-label="현재 진행 단계">{phases.map((item, index) => <button key={item.id} aria-pressed={phase === index} disabled><span>0{index + 1}</span> {item.id}</button>)}</div>
+          <div className="play-instruction" role="status"><h2>{paused ? '잠시 쉬어가요' : phases[phase].title}</h2><p>{paused ? '준비되면 이어하기를 눌러주세요.' : frame?.active && phase !== 0 ? `${lane?.label ?? '목표 자세'} · 자세를 유지해 주세요` : '음악에 맞춰 준비해 주세요'}</p></div>
+          </>}
+          <div className={`play-hold-gauge${note.success ? ' is-complete' : ''}${note.miss ? ' is-miss' : ''}`}
+            role="progressbar" aria-label="자세 유지" aria-valuemin={0} aria-valuemax={100}
+            aria-valuenow={Math.round((frame?.active && phase !== 0 ? frame.holdProgress : 0) * 100)}>
+            <span style={{ transform: `scaleX(${frame?.active && phase !== 0 ? frame.holdProgress : 0})` }} />
+          </div>
+          <div className="play-scene">
+            <svg viewBox="0 0 720 560" role="img" aria-label={note.success ? 'SUCCESS, 사과를 획득했어요' : note.miss ? 'MISS, 먹이에 맞는 자세를 취하지 못했어요' : `${character.name}의 현재 자세: ${characterPoses[motion].label}.${frame?.flying ? ` 사과 한 개가 ${lane?.label} 방향에서 와요` : ''}`}>
+              <defs>
+                <filter id="food-outline" x="-40%" y="-40%" width="180%" height="180%" colorInterpolationFilters="sRGB">
+                  <feMorphology in="SourceAlpha" operator="dilate" radius="2.5" result="outline" />
+                  <feFlood floodColor="#fffdf2" />
+                  <feComposite in2="outline" operator="in" result="border" />
+                  <feMerge><feMergeNode in="border" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <image id="preview-apple" href="/notes/apple.png" x="-17" y="-17" width="34" height="34" preserveAspectRatio="xMidYMid meet" />
+              </defs>
+              <image href={poseImage} x="260" y="173" width="200" height="210" preserveAspectRatio="xMidYMid meet"/>
+              {frame?.flying && <g className="play-food" transform={`translate(${foodX} ${foodY})`}>
+                <use href="#preview-apple" filter="url(#food-outline)" />
+              </g>}
+            </svg>
+            <div className="play-success-feedback" role="status" aria-live="polite">{note.success && <span key={note.serial}>SUCCESS <span aria-hidden="true">✦</span></span>}{note.miss && <span key={note.serial} className="play-miss">MISS</span>}</div>
+            {isTutorial && !tutorialStarted && <div className="play-tutorial-intro"><div><h2>먹이를 먹는 방법을 연습해요</h2><p>먹이가 오는 방향에 맞춰 고개를 움직여요.<br />자세를 유지해 게이지를 채우면 성공이에요.<br />놓쳐도 같은 동작을 다시 연습할 수 있어요.</p><button type="button" className="play-camera-toggle" onClick={() => setTutorialStarted(true)}>연습 시작</button></div></div>}
+            {paused && <div className="play-paused-badge"><span aria-hidden="true">Ⅱ</span> 일시정지</div>}
+          </div>
+        </section>
+        <aside className="play-sidebar" aria-label="게임 정보">
+          <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>{String(completion?.score ?? (frame?.results.filter(result => result.result === 'SUCCESS').length ?? 0) * 100).padStart(6, '0')}</strong><div className="play-score-foot"><span>SCORE</span><span>{completion ? '완료' : '진행 중'}</span></div></section>
+          <CameraPreview camera={{ ...camera, startCamera: () => { setTrackingError(null); return camera.startCamera(); } }} onVideo={setVideoElement} trackingStatus={trackingStatus} trackingError={trackingError} />
+          <div className="play-friend"><img src={character.image} alt=""/><p><strong>{character.name}와 함께하고 있어요</strong><span>작은 움직임도 멋진 리듬이 돼요.</span></p></div>
+          <button className="play-pause" disabled={!!completion} aria-pressed={paused} onClick={() => setPaused(value => !value)}><span aria-hidden="true">{paused ? '▷' : 'Ⅱ'}</span>{paused ? '이어하기' : '일시정지'}</button>
+          {onAbort && <button className="play-camera-toggle" onClick={onAbort}>노래 고르기로</button>}
+          {audioError && <div role="alert"><p>{audioError}</p><button type="button" className="play-camera-toggle" onClick={() => {
+            if (audio.current?.error) audio.current.load();
+            if (paused) setPaused(false);
+            else playMusic();
+          }}>음악 재생</button></div>}
+        </aside>
+      </div>
+      {isTutorial ? <footer className="play-progress play-card"><div className="play-progress-main"><div className="play-progress-heading"><strong>음악 없이 동작 연습</strong><span>{frame?.results.length ?? 0} / {chart?.notes.length ?? 6} 완료</span></div><div className="play-progress-track" role="progressbar" aria-label="튜토리얼 진행" aria-valuemin={0} aria-valuemax={chart?.notes.length ?? 6} aria-valuenow={frame?.results.length ?? 0}><span style={{ width: `${(frame?.results.length ?? 0) / (chart?.notes.length || 6) * 100}%` }} /></div></div></footer> : <footer className="play-progress play-card"><span className="play-progress-note" aria-hidden="true">♫</span><div className="play-progress-main"><div className="play-progress-heading"><strong>{chart?.title ?? '노래를 선택해 주세요'}</strong><span>{formatTime(currentTime)} / {formatTime(gameDuration)}</span></div><div className="play-progress-track" role="progressbar" aria-label="곡 진행" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><span style={{ width: `${progress}%` }} /></div></div><span className="play-progress-status">{!chart ? '선택 대기' : audioError ? '재생 확인 필요' : paused ? '일시정지' : '음악 재생 중'}</span></footer>}
+    </div>
+    <div className="play-floor" aria-hidden="true">✿ <span>매일 조금씩, 즐겁게 움직여요</span> ♧</div>
+    {completion && <div className="play-completion" role="status"><div><span aria-hidden="true">✦</span><h1>{isTutorial ? "연습을 마쳤어요!" : "수고했어요!"}</h1><p>동작 {completion.notes.length}개 중 {completion.notes.filter(note => note.judgment !== 'MISS').length}개 성공했어요.</p><p>{isTutorial ? '이제 노래를 골라 함께 해봐요.' : onFinish ? '잠시 후 운동 후 상태를 체크해요.' : '리듬 스트레칭을 마쳤어요.'}</p>{!onFinish && <button type="button" className="play-camera-toggle" onClick={onAbort ?? onCharacterSelect}>돌아가기</button>}</div></div>}
+  </main>;
+}
+

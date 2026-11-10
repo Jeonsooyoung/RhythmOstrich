@@ -23,6 +23,7 @@ import type { CharacterId } from '../types/character';
 import type { CalibrationSnapshot } from '../types/session';
 
 interface CalibrationPageProps {
+    camera: ReturnType<typeof useWebcam>;
     characterId: CharacterId;
     onComplete: (calibration: CalibrationSnapshot) => void;
     onBack: () => void;
@@ -39,9 +40,9 @@ function subjectParticle(name: string): string {
     return code >= 0 && code <= 11171 && code % 28 !== 0 ? '이' : '가';
 }
 
-export default function CalibrationPage({ characterId, onComplete, onBack }: CalibrationPageProps) {
+export default function CalibrationPage({ camera, characterId, onComplete, onBack }: CalibrationPageProps) {
     const character = characters.find(c => c.id === characterId) ?? characters[0];
-    const { stream, error, isLoading, startCamera } = useWebcam();
+    const { stream, error, isLoading, startCamera } = camera;
     const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
     const faceResult = useFaceLandmarker(videoElement);
     const poseResult = usePoseLandmarker(videoElement);
@@ -176,10 +177,10 @@ export default function CalibrationPage({ characterId, onComplete, onBack }: Cal
                     disabled={!calibration || measuring}
                     onClick={() => calibration && onComplete(calibration)}
                 >
-                    다음 <span aria-hidden="true">→</span>
+                    게임 시작 <span aria-hidden="true">→</span>
                 </button>
             </div>
-            <button type="button" className="gp-link" onClick={onBack}>← 캐릭터 다시 고르기</button>
+            <button type="button" className="gp-link" onClick={onBack}>← 노래 다시 고르기</button>
         </GardenLayout>
     );
 }

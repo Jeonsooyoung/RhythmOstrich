@@ -8,15 +8,18 @@ import type {
 import { createFaceLandmarker } from '../mediapipe/faceLandmarker';
 
 export function useFaceLandmarker(
-    videoElement: HTMLVideoElement | null
+    videoElement: HTMLVideoElement | null,
+    onError?: (message: string) => void,
 ) {
     const landmarkerRef = useRef<FaceLandmarker | null>(null);
     const lastVideoTimeRef = useRef(-1);
 
     const [result, setResult] =
-        useState<FaceLandmarkerResult | null>(null);
+        useState<{ source: HTMLVideoElement; detection: FaceLandmarkerResult } | null>(null);
 
     useEffect(() => {
+        if (!videoElement) return;
+        lastVideoTimeRef.current = -1;
         let animationFrameId: number;
         let isCancelled = false;
 
@@ -41,13 +44,18 @@ export function useFaceLandmarker(
                 if (videoElement.currentTime !== lastVideoTimeRef.current) {
                     lastVideoTimeRef.current = videoElement.currentTime;
 
-                    const detectionResult =
-                        landmarker.detectForVideo(
+                    try {
+                      const detectionResult = landmarker.detectForVideo(
                             videoElement,
                             performance.now()
                         );
 
-                    setResult(detectionResult);
+                      setResult({ source: videoElement, detection: detectionResult });
+                    } catch {
+                      setResult(null);
+                      onError?.('얼굴 인식이 중단되었습니다. 카메라를 껐다 켜주세요.');
+                      return;
+                    }
                 }
             }
 
@@ -55,13 +63,15 @@ export function useFaceLandmarker(
                 requestAnimationFrame(detect);
         }
 
-        initialize();
+        initialize().catch(() => {
+            if (!isCancelled) onError?.('얼굴 인식을 시작할 수 없습니다. 네트워크를 확인하고 카메라를 다시 켜주세요.');
+        });
 
         return () => {
             isCancelled = true;
             cancelAnimationFrame(animationFrameId);
         };
-    }, [videoElement]);
+    }, [videoElement, onError]);
 
-    return result;
+    return result?.source === videoElement ? result.detection : null;
 }

@@ -13,8 +13,8 @@ const fullPlay = [
     { type: 'SET_USER', userId: ' user1 ' },
     { type: 'SUBMIT_PRE', assessment: pre },
     { type: 'SELECT_CHARACTER', characterId: 'ostrich' },
-    { type: 'CALIBRATED', calibration },
     { type: 'SELECT_SONG', chartId: 'tutorial', now: '2026-11-09T01:00:00Z' },
+    { type: 'CALIBRATED', calibration },
     { type: 'FINISH_GAME', result: game },
     { type: 'SUBMIT_POST', assessment: post, now: '2026-11-09T01:05:00Z' },
 ];
@@ -27,7 +27,7 @@ test('명세서 순서대로 화면이 진행됨', () => {
         phases.push(getPhase(draft));
     }
     assert.deepEqual(phases, [
-        'userId', 'preAssessment', 'character', 'calibration', 'song', 'game', 'postAssessment', 'result',
+        'userId', 'preAssessment', 'character', 'song', 'calibration', 'game', 'postAssessment', 'result',
     ]);
 });
 
@@ -55,6 +55,7 @@ test('다시 하기: 사전 평가, 보정, 캐릭터 유지 → 곡 선택부�
 
     const next = run([
         { type: 'SELECT_SONG', chartId: 'tutorial', now: 't2' },
+        { type: 'CALIBRATED', calibration },
         { type: 'FINISH_GAME', result: game },
         { type: 'SUBMIT_POST', assessment: post, now: 't3' },
     ], draft);
@@ -79,13 +80,13 @@ test('처음으로: 모든 값이 비워짐', () => {
 });
 
 test('뒤로 가기는 이전 단계 값만 비움, 게임 후에는 뒤로 못 감', () => {
-    const atSong = run(fullPlay.slice(0, 4));
+    const atSong = run(fullPlay.slice(0, 3));
     const backFromSong = sessionReducer(atSong, { type: 'BACK' });
-    assert.equal(getPhase(backFromSong), 'calibration');
-    assert.equal(backFromSong.characterId, 'ostrich');
+    assert.equal(getPhase(backFromSong), 'character');
+    assert.equal(backFromSong.characterId, null);
 
-    const atCalibration = run(fullPlay.slice(0, 3));
-    assert.equal(getPhase(sessionReducer(atCalibration, { type: 'BACK' })), 'character');
+    const atCalibration = run(fullPlay.slice(0, 4));
+    assert.equal(getPhase(sessionReducer(atCalibration, { type: 'BACK' })), 'song');
 
     const atCharacter = run(fullPlay.slice(0, 2));
     const back = sessionReducer(atCharacter, { type: 'BACK' });
@@ -102,6 +103,27 @@ test('게임 중 중단하면 곡 선택으로, 기록 없음', () => {
     assert.equal(draft.startedAt, null);
 });
 
+test('곡을 다시 고르면 이전 정면 기준을 지우고 새로 맞춤', () => {
+    const inGame = run(fullPlay.slice(0, 5));
+    const next = sessionReducer(inGame, { type: 'SELECT_SONG', chartId: 'another-song', now: 't2' });
+    assert.equal(getPhase(next), 'calibration');
+    assert.equal(next.calibration, null);
+    assert.equal(next.chartId, 'another-song');
+    const ready = sessionReducer(next, { type: 'CALIBRATED', calibration });
+    assert.equal(getPhase(ready), 'game');
+    assert.equal(ready.calibration, calibration);
+});
+
+test('로고로 캐릭터 선택에 돌아가면 플레이와 보정은 지우고 사전 평가는 유지', () => {
+    const draft = sessionReducer(run(fullPlay.slice(0, 5)), { type: 'RETURN_TO_CHARACTER' });
+    assert.equal(getPhase(draft), 'character');
+    assert.equal(draft.pre, pre);
+    assert.equal(draft.chartId, null);
+    assert.equal(draft.calibration, null);
+    const selected = sessionReducer(draft, { type: 'SELECT_CHARACTER', characterId: 'ostrich' });
+    assert.equal(getPhase(selected), 'song');
+});
+
 test('새로고침 복구: 입력 화면은 그대로, 게임 중이었다면 보정부터', () => {
     const atPost = run(fullPlay.slice(0, 6));
     assert.equal(getPhase(restoreDraft(JSON.parse(JSON.stringify(atPost)))), 'postAssessment');
@@ -110,11 +132,11 @@ test('새로고침 복구: 입력 화면은 그대로, 게임 중이었다면 �
     const restored = restoreDraft(JSON.parse(JSON.stringify(inGame)));
     assert.equal(getPhase(restored), 'calibration');
     assert.deepEqual(restored.pre, pre);
-    assert.equal(restored.chartId, null);
+    assert.equal(restored.chartId, 'tutorial');
 
-    // 다시 보정하면 캐릭터는 유지된 채 곡 선택으로
+    // 고른 곡은 유지하고 다시 보정한 뒤 게임으로
     const afterCalibration = sessionReducer(restored, { type: 'CALIBRATED', calibration });
-    assert.equal(getPhase(afterCalibration), 'song');
+    assert.equal(getPhase(afterCalibration), 'game');
 });
 
 test('복구할 수 없는 데이터는 무시', () => {
