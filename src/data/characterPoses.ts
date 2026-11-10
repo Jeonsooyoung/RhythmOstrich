@@ -1,6 +1,6 @@
 import type { MotionType } from '../motion/motionDetector';
 import type { CharacterId } from '../types/character';
-import { characters } from './characters';
+import { characters } from './characters.ts';
 
 export const characterPoses: Record<
     MotionType,
