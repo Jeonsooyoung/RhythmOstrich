@@ -55,6 +55,7 @@
 .play-success-feedback > span { padding: 8px 23px; border: 2px solid #fffdf4; border-radius: 24px; background: #e9eddb; color: #657e55; font-size: clamp(18px, 3vw, 27px); font-weight: 900; box-shadow: 0 4px 0 #d8dfcc; animation: play-success-pop .25s ease-out both; }
 .play-success-feedback > span > span { margin-left: 6px; color: #bba56a; }
 .play-success-feedback > .play-miss { background: #f5e3dc; color: #a45d4e; box-shadow: 0 4px 0 #e7c9bf; }
+.play-success-feedback > .play-good { background: #f3eed9; color: #8a7a45; box-shadow: 0 4px 0 #e3dcc0; }
 @keyframes play-success-pop { from { opacity: 0; transform: translateY(8px) scale(.85); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .play-ring-label { font: 11px 'Malgun Gothic', sans-serif; fill: #8f9c7e; letter-spacing: 2px; }
 .play-turn-label { font: 11px 'Malgun Gothic', sans-serif; fill: #a49b88; }
