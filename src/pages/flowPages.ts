@@ -3,13 +3,13 @@
 // (props 약속은 src/types/pages.ts)
 
 // 3번 파트: 사전·사후 자가 평가 (AssessmentPageProps)
-export { default as AssessmentPage } from './placeholders/AssessmentPlaceholder';
+export { default as AssessmentPage } from './AssessmentPage';
 
 // 1·2번 파트: 게임 (GamePageProps)
 export { default as GamePage } from './GamePlay';
 
 // 3번 파트: 결과 (ResultPageProps)
-export { default as ResultPage } from './placeholders/ResultPlaceholder';
+export { default as ResultPage } from './ResultPage';
 
 // 곡 선택 (연습 포함 여부는 1번 파트와 상의)
 export { default as SongSelectPage } from './placeholders/SongSelectPlaceholder';

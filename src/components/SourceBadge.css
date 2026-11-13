@@ -1,0 +1,4 @@
+/* 값 출처 꼬리표 (웹캠 판정 / 직접 입력) */
+.gp-source { display: inline-flex; align-items: center; gap: 4px; padding: 3px 11px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .2px; white-space: nowrap; vertical-align: middle; }
+.gp-source-webcam { background: #e3e9f2; color: #4f6585; }
+.gp-source-self { background: #f6edc9; color: #8a7444; }
