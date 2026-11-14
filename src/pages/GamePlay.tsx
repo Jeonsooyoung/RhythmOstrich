@@ -10,6 +10,7 @@ import type { CharacterId } from '../types/character';
 import type { ChartData } from '../game/chart';
 import { buildPlaybackResult, createPlayback } from '../game/playback';
 import { beatToSec } from '../game/chart';
+import { judgmentOf, scoreResults } from '../game/scoring';
 import { createTutorial, TUTORIAL_GUIDES } from '../game/tutorial';
 import type { MotionType } from '../motion/motionDetector';
 import { calibrateAngles } from '../motion/calibrate';
@@ -110,6 +111,10 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
   const phase = frame?.phase ?? 0;
   const lane = lanes.find(lane => lane.motion === frame?.motion);
   const note = { success: frame?.result === 'SUCCESS', miss: frame?.result === 'FAIL', serial: frame?.index ?? -1 };
+  // 점수·콤보는 판정이 끝난 노트들로 계산하고, 방금 끝난 노트의 등급을 화면에 표시한다.
+  const stats = scoreResults(frame?.results ?? []);
+  const judged = frame?.results.find(result => result.noteId === frame.index + 1);
+  const grade = isTutorial || !judged ? 'SUCCESS' : judgmentOf(judged);
   const pathPoints = lane?.path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [360, 280, 360, 280];
   const t = frame?.progress ?? 0;
   const foodX = pathPoints.length === 6 ? (1-t)**2 * pathPoints[0] + 2*(1-t)*t * pathPoints[2] + t*t * pathPoints[4] : pathPoints[0] + t * (pathPoints[2] - pathPoints[0]);
@@ -249,13 +254,13 @@ export default function GamePlay({ chart, camera, calibration: snapshot, charact
                 <use href="#preview-apple" filter="url(#food-outline)" />
               </g>}
             </svg>
-            <div className="play-success-feedback" role="status" aria-live="polite">{note.success && <span key={note.serial}>SUCCESS <span aria-hidden="true">✦</span></span>}{note.miss && <span key={note.serial} className="play-miss">MISS</span>}</div>
+            <div className="play-success-feedback" role="status" aria-live="polite">{note.success && <span key={note.serial} className={grade === 'GOOD' ? 'play-good' : undefined}>{grade} <span aria-hidden="true">✦</span></span>}{note.miss && <span key={note.serial} className="play-miss">MISS</span>}</div>
             {isTutorial && !tutorialStarted && <div className="play-tutorial-intro"><div><h2>먹이를 먹는 방법을 연습해요</h2><p>먹이가 오는 방향에 맞춰 고개를 움직여요.<br />자세를 유지해 게이지를 채우면 성공이에요.<br />놓쳐도 같은 동작을 다시 연습할 수 있어요.</p><button type="button" className="play-camera-toggle" onClick={() => setTutorialStarted(true)}>연습 시작</button></div></div>}
             {paused && <div className="play-paused-badge"><span aria-hidden="true">Ⅱ</span> 일시정지</div>}
           </div>
         </section>
         <aside className="play-sidebar" aria-label="게임 정보">
-          <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>{String(completion?.score ?? (frame?.results.filter(result => result.result === 'SUCCESS').length ?? 0) * 100).padStart(6, '0')}</strong><div className="play-score-foot"><span>SCORE</span><span>{completion ? '완료' : '진행 중'}</span></div></section>
+          <section className="play-score play-card"><div className="play-card-heading"><span>나의 점수</span><span aria-hidden="true">✦</span></div><strong>{String(completion?.score ?? stats.score).padStart(6, '0')}</strong><div className="play-score-foot"><span>SCORE</span><span>{completion ? '완료' : stats.combo >= 2 ? `${stats.combo} COMBO` : '진행 중'}</span></div></section>
           <CameraPreview camera={{ ...camera, startCamera: () => { setTrackingError(null); return camera.startCamera(); } }} onVideo={setVideoElement} trackingStatus={trackingStatus} trackingError={trackingError} />
           <div className="play-friend"><img src={character.image} alt=""/><p><strong>{character.name}와 함께하고 있어요</strong><span>작은 움직임도 멋진 리듬이 돼요.</span></p></div>
           <button className="play-pause" disabled={!!completion} aria-pressed={paused} onClick={() => setPaused(value => !value)}><span aria-hidden="true">{paused ? '▷' : 'Ⅱ'}</span>{paused ? '이어하기' : '일시정지'}</button>
